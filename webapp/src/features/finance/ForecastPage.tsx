@@ -65,8 +65,8 @@ export function ForecastPage() {
         выигранных сделок: {formatMoney(data.mrr)}/мес.
       </p>
 
-      <section className="grid gap-2">
-        <h2 className="text-sm font-semibold">План по месяцам</h2>
+      <section className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
+        <h2 className="text-sm font-semibold lg:col-span-2 xl:col-span-3">План по месяцам</h2>
         {data.months.map((month) => (
           <div className="rounded-xl border p-3" key={month.month}>
             <div className="flex items-baseline justify-between">

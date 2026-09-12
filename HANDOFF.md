@@ -52,8 +52,10 @@ YouGile (быстрые карточки, чат-комментарии на к�
 - Контракты: `packages/contracts/src/business.ts` — все Zod-схемы, даты-без-времени как 'YYYY-MM-DD',
   деньги — целые рубли (Int). Регистрация: `registerRequestSchema.inviteCode` + проверка в
   `auth/transport/routes.ts::assertInviteCode` (env `SIGNUP_INVITE_CODE`).
-- Webapp: React 19 + Vite + TanStack Router/Query. Мобильный шелл `components/MobileShell.tsx`
-  (нижняя навигация: Обзор/Сделки/Финансы/Задачи; профиль в шапке). Фичи: `features/dashboard`,
+- Webapp: React 19 + Vite + TanStack Router/Query. Адаптивный шелл `components/AppShell.tsx`:
+  на ПК (lg+) — фиксированное боковое меню (разделы + подразделы финансов + профиль/выход),
+  на телефоне — липкий заголовок и нижняя навигация. Шиты карточек на ПК открываются справа,
+  на телефоне — снизу (`platform/use-is-desktop.ts`). Финансы на ПК — таблица операций. Фичи: `features/dashboard`,
   `features/crm` (CrmBoardPage + DealSheet), `features/finance` (FinancePage/TxnSheet/RecurringPage/
   ForecastPage), `features/devboard`. Канбан: HTML5 drag&drop на десктопе + «Переместить» селектом
   в шите на телефоне. Админ-зона `/admin/*` — десктопный WorkspaceShell, вход из Настроек.

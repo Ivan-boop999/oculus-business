@@ -45,7 +45,7 @@ export function FinancePage() {
   const months = txns.data?.months ?? [month]
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 lg:grid-cols-[300px_1fr] lg:items-start lg:gap-6">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-lg font-semibold tracking-tight">Финансы</h1>
         <select
@@ -87,8 +87,9 @@ export function FinancePage() {
         />
       </div>
 
+      <div className="grid gap-3 lg:contents">
       {summary.data && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 lg:flex-col lg:items-start">
           <Badge variant="secondary">Баланс: {formatMoney(summary.data.balance)}</Badge>
           <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
             MRR: {formatMoney(summary.data.mrr)}/мес
@@ -100,13 +101,14 @@ export function FinancePage() {
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 lg:flex-col lg:items-stretch">
         <Button asChild size="sm" variant="outline">
           <Link to="/app/finance/recurring">Регулярные платежи</Link>
         </Button>
         <Button asChild size="sm" variant="outline">
           <Link to="/app/finance/forecast">Прогноз и runway</Link>
         </Button>
+      </div>
       </div>
 
       <section className="grid gap-2">
@@ -118,6 +120,44 @@ export function FinancePage() {
             В этом месяце операций нет. Нажмите «+», чтобы добавить доход или расход.
           </p>
         )}
+        {/* ПК: таблица операций */}
+        <div className="hidden overflow-hidden rounded-xl border lg:block">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Дата</th>
+                <th className="px-3 py-2 font-medium">Категория</th>
+                <th className="px-3 py-2 font-medium">Комментарий</th>
+                <th className="px-3 py-2 text-right font-medium">Сумма</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(txns.data?.items ?? []).map((txn) => (
+                <tr
+                  className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+                  key={txn.id}
+                  onClick={() => setSelectedTxn(txn)}
+                >
+                  <td className="px-3 py-2 whitespace-nowrap tabular-nums text-muted-foreground">{txn.occurredOn}</td>
+                  <td className="px-3 py-2 font-medium">{txn.category}</td>
+                  <td className="max-w-72 truncate px-3 py-2 text-muted-foreground">{txn.comment ?? '—'}</td>
+                  <td
+                    className={`px-3 py-2 text-right font-semibold tabular-nums ${
+                      txn.kind === 'income'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    {txn.kind === 'income' ? '+' : '−'}{formatMoney(txn.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Телефон: список */}
+        <div className="lg:hidden">
         {txns.data?.items.map((txn) => (
           <button
             className="flex items-center gap-3 rounded-xl border bg-background p-3 text-left transition-colors hover:bg-muted/40"
@@ -151,10 +191,11 @@ export function FinancePage() {
             </span>
           </button>
         ))}
+        </div>
       </section>
 
       <Button
-        className="fixed right-4 bottom-20 z-30 h-14 w-14 rounded-full text-2xl shadow-lg"
+        className="fixed right-4 bottom-20 z-30 h-14 w-14 rounded-full text-2xl shadow-lg lg:bottom-6"
         onClick={() => setCreating(true)}
         size="icon-lg"
       >

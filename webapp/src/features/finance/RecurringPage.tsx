@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import type { RecurringItem } from '@oculus-business/contracts'
 import { formatMoney, todayDateOnly } from '@/platform/format'
+import { useIsDesktop } from '@/platform/use-is-desktop'
 
 import {
   useCreateRecurringMutation,
@@ -37,19 +38,21 @@ export function RecurringPage() {
 
       {settings.data && <BalanceForm initial={settings.data.settings} />}
 
-      <Section title="Доходы каждый месяц">
-        {income.map((item) => (
-          <Row item={item} key={item.id} onSelect={() => setSelected(item)} />
-        ))}
-        {income.length === 0 && <Empty text="Регулярных доходов нет" />}
-      </Section>
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <Section title="Доходы каждый месяц">
+          {income.map((item) => (
+            <Row item={item} key={item.id} onSelect={() => setSelected(item)} />
+          ))}
+          {income.length === 0 && <Empty text="Регулярных доходов нет" />}
+        </Section>
 
-      <Section title="Расходы каждый месяц">
-        {expense.map((item) => (
-          <Row item={item} key={item.id} onSelect={() => setSelected(item)} />
-        ))}
-        {expense.length === 0 && <Empty text="Регулярных расходов нет" />}
-      </Section>
+        <Section title="Расходы каждый месяц">
+          {expense.map((item) => (
+            <Row item={item} key={item.id} onSelect={() => setSelected(item)} />
+          ))}
+          {expense.length === 0 && <Empty text="Регулярных расходов нет" />}
+        </Section>
+      </div>
 
       <div className="flex gap-2">
         <Button onClick={() => setCreating(true)}>+ Регулярный платёж</Button>
@@ -174,6 +177,7 @@ function RecurringSheet({
     activeFrom: todayDateOnly(),
   })
   const [error, setError] = useState<string | null>(null)
+  const isDesktop = useIsDesktop()
 
   useEffect(() => {
     if (!open) return
@@ -229,8 +233,8 @@ function RecurringSheet({
   return (
     <Sheet onOpenChange={(next) => (!next ? onClose() : undefined)} open={open}>
       <SheetContent
-        className="mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"
-        side="bottom"
+        className={isDesktop ? "inset-y-0 right-0 h-full w-full gap-0 overflow-y-auto sm:max-w-lg lg:max-w-lg" : "mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"}
+        side={isDesktop ? "right" : "bottom"}
       >
         <SheetHeader className="pb-0">
           <SheetTitle>

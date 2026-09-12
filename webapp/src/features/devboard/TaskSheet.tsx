@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Textarea } from '@/components/ui/textarea'
 import type { DevTask, DevTaskPriority, DevTaskType } from '@oculus-business/contracts'
 import { PRIORITY_LABELS, TASK_TYPE_LABELS } from '@/platform/format'
+import { useIsDesktop } from '@/platform/use-is-desktop'
 
 import type { ColumnWithTasks } from './DevBoardPage'
 
@@ -52,6 +53,7 @@ export function TaskSheet({
   const isCreate = task === null
   const [form, setForm] = useState<FormState>(emptyForm)
   const [error, setError] = useState<string | null>(null)
+  const isDesktop = useIsDesktop()
   const [comment, setComment] = useState('')
 
   useEffect(() => {
@@ -109,8 +111,8 @@ export function TaskSheet({
   return (
     <Sheet onOpenChange={(next) => (!next ? onClose() : undefined)} open={open}>
       <SheetContent
-        className="mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"
-        side="bottom"
+        className={isDesktop ? "inset-y-0 right-0 h-full w-full gap-0 overflow-y-auto sm:max-w-lg lg:max-w-lg" : "mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"}
+        side={isDesktop ? "right" : "bottom"}
       >
         <SheetHeader className="pb-0">
           <SheetTitle>{isCreate ? 'Новая задача' : task?.title}</SheetTitle>

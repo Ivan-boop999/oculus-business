@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth'
 import { dateLabel, formatMoney, RUNWAY_MODE_LABELS } from '@/platform/format'
 
 /// Главный экран: здоровье бизнеса одним взглядом — деньги, воронка, действия, задачи.
+/// Телефон — одна колонка, ПК — широкая сетка.
 export function DashboardPage() {
   const { transport } = useAuth()
   const dashboard = useQuery({
@@ -34,13 +35,10 @@ export function DashboardPage() {
 
   return (
     <div className="grid gap-4">
-      <h1 className="text-lg font-semibold tracking-tight">Обзор</h1>
+      <h1 className="text-lg font-semibold tracking-tight lg:text-xl">Обзор</h1>
 
-      <div className="grid grid-cols-2 gap-2">
-        <MetricTile
-          label="Баланс"
-          value={formatMoney(data.finance.balance)}
-        />
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <MetricTile label="Баланс" value={formatMoney(data.finance.balance)} />
         <MetricTile
           label="MRR (подписки)"
           tone="text-emerald-600 dark:text-emerald-400"
@@ -64,55 +62,53 @@ export function DashboardPage() {
         />
       </div>
 
-      <div className="rounded-xl border p-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold">Воронка</h2>
-          <Link className="text-xs text-primary" to="/app/crm">
-            открыть доску →
-          </Link>
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-sm">
-          <div>
-            <p className="text-base font-semibold">{data.crm.activeDeals}</p>
-            <p className="text-[11px] text-muted-foreground">в работе</p>
-          </div>
-          <div>
-            <p className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
-              {data.crm.wonDeals}
-            </p>
-            <p className="text-[11px] text-muted-foreground">клиентов</p>
-          </div>
-          <div>
-            <p className="text-base font-semibold">{formatMoney(data.crm.pipelineMonthly)}</p>
-            <p className="text-[11px] text-muted-foreground">пайплайн/мес</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border p-3">
-        <h2 className="text-sm font-semibold">Следующие действия</h2>
-        <div className="mt-2 grid gap-2">
-          {data.nextActions.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Нет запланированных действий — откройте сделку и задайте «следующее действие».
-            </p>
-          )}
-          {data.nextActions.map((action) => (
-            <Link
-              className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm transition-colors hover:bg-muted"
-              key={action.dealId}
-              to="/app/crm"
-            >
-              <span className="grid shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                {action.nextActionAt ? dateLabel(action.nextActionAt) : '—'}
-              </span>
-              <span className="min-w-0 flex-1 truncate">
-                <span className="font-medium">{action.dealTitle}</span>
-                {action.nextAction ? ` — ${action.nextAction}` : ''}
-              </span>
-              <span className="shrink-0 text-[11px] text-muted-foreground">{action.stageTitle}</span>
+      <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+        <div className="rounded-xl border p-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold">Воронка</h2>
+            <Link className="text-xs text-primary" to="/app/crm">
+              открыть доску →
             </Link>
-          ))}
+          </div>
+          <div className="mt-2 grid gap-2 lg:grid-cols-1">
+            <Stat label="в работе" value={String(data.crm.activeDeals)} />
+            <Stat
+              label="действующих клиентов"
+              tone="text-emerald-600 dark:text-emerald-400"
+              value={String(data.crm.wonDeals)}
+            />
+            <Stat label="пайплайн/мес" value={formatMoney(data.crm.pipelineMonthly)} />
+            <Stat label="разовый пайплайн" value={formatMoney(data.crm.pipelineOneTime)} />
+          </div>
+        </div>
+
+        <div className="rounded-xl border p-3 lg:col-span-2">
+          <h2 className="text-sm font-semibold">Следующие действия</h2>
+          <div className="mt-2 grid gap-2">
+            {data.nextActions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Нет запланированных действий — откройте сделку и задайте «следующее действие».
+              </p>
+            )}
+            {data.nextActions.map((action) => (
+              <Link
+                className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm transition-colors hover:bg-muted"
+                key={action.dealId}
+                to="/app/crm"
+              >
+                <span className="grid shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  {action.nextActionAt ? dateLabel(action.nextActionAt) : '—'}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium">{action.dealTitle}</span>
+                  {action.nextAction ? ` — ${action.nextAction}` : ''}
+                </span>
+                <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:block">
+                  {action.stageTitle}
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -123,23 +119,25 @@ export function DashboardPage() {
             доска доработок →
           </Link>
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-sm">
-          <div>
-            <p className="text-base font-semibold">{data.dev.openTasks}</p>
-            <p className="text-[11px] text-muted-foreground">открыто</p>
-          </div>
-          <div>
-            <p className="text-base font-semibold">{data.dev.inProgressTasks}</p>
-            <p className="text-[11px] text-muted-foreground">в работе</p>
-          </div>
-          <div>
-            <p className="text-base font-semibold text-red-600 dark:text-red-400">
-              {data.dev.urgentBugs}
-            </p>
-            <p className="text-[11px] text-muted-foreground">срочных багов</p>
-          </div>
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-sm lg:max-w-md">
+          <Stat label="открыто" value={String(data.dev.openTasks)} />
+          <Stat label="в работе" value={String(data.dev.inProgressTasks)} />
+          <Stat label="срочных багов" tone="text-red-600 dark:text-red-400" value={String(data.dev.urgentBugs)} />
         </div>
       </div>
+    </div>
+  )
+}
+
+function Stat({ label, tone, value }: { label: string; tone?: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 lg:justify-start">
+      <span
+        className={`text-base font-semibold tabular-nums lg:w-28 lg:text-right ${tone ?? ''}`}
+      >
+        {value}
+      </span>
+      <span className="text-[11px] text-muted-foreground">{label}</span>
     </div>
   )
 }

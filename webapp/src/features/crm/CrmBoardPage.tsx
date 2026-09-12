@@ -55,10 +55,10 @@ export function CrmBoardPage() {
   return (
     <div className="grid gap-3">
       <BoardHeader stages={stages} />
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
+      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:gap-4 lg:px-0">
         {stages.map((stage) => (
           <section
-            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 ${
+            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 lg:w-80 ${
               dragOverStageId === stage.id ? 'border-primary' : ''
             }`}
             key={stage.id}
@@ -161,7 +161,7 @@ export function CrmBoardPage() {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground lg:hidden">
         На телефоне откройте карточку и нажмите «Переместить». С компьютера карточку можно
         перетащить мышью.
       </p>

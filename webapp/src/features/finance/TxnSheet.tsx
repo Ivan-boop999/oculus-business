@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Textarea } from '@/components/ui/textarea'
 import type { Txn } from '@oculus-business/contracts'
 import { todayDateOnly } from '@/platform/format'
+import { useIsDesktop } from '@/platform/use-is-desktop'
 
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from './FinancePage'
 import { useCreateTxnMutation, useDeleteTxnMutation, useUpdateTxnMutation } from './queries'
@@ -41,6 +42,7 @@ export function TxnSheet({
   const isCreate = txn === null
   const [form, setForm] = useState<FormState>(() => formFromTxn(txn))
   const [error, setError] = useState<string | null>(null)
+  const isDesktop = useIsDesktop()
 
   useEffect(() => {
     if (open) {
@@ -84,8 +86,8 @@ export function TxnSheet({
   return (
     <Sheet onOpenChange={(next) => (!next ? onClose() : undefined)} open={open}>
       <SheetContent
-        className="mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"
-        side="bottom"
+        className={isDesktop ? "inset-y-0 right-0 h-full w-full gap-0 overflow-y-auto sm:max-w-lg lg:max-w-lg" : "mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"}
+        side={isDesktop ? "right" : "bottom"}
       >
         <SheetHeader className="pb-0">
           <SheetTitle>{isCreate ? 'Новая операция' : 'Изменить операцию'}</SheetTitle>

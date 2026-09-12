@@ -68,10 +68,10 @@ export function DevBoardPage() {
     <div className="grid gap-3">
       <h1 className="text-lg font-semibold tracking-tight">Доработки и баги</h1>
 
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
+      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:gap-4 lg:px-0">
         {columns.map((column) => (
           <section
-            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 ${
+            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 lg:w-80 ${
               dragOverColumnId === column.id ? 'border-primary' : ''
             }`}
             key={column.id}

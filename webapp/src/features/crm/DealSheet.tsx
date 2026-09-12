@@ -13,6 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import type { Deal } from '@oculus-business/contracts'
 import { todayDateOnly } from '@/platform/format'
+import { useIsDesktop } from '@/platform/use-is-desktop'
 
 import type { StageWithDeals } from './CrmBoardPage'
 
@@ -92,6 +93,7 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
   const isCreate = deal === null
   const [form, setForm] = useState<DealFormState>(() => formFromDeal(deal))
   const [error, setError] = useState<string | null>(null)
+  const isDesktop = useIsDesktop()
   const [comment, setComment] = useState('')
 
   useEffect(() => {
@@ -134,8 +136,8 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
   return (
     <Sheet onOpenChange={(next) => (!next ? onClose() : undefined)} open={open}>
       <SheetContent
-        className="mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"
-        side="bottom"
+        className={isDesktop ? "inset-y-0 right-0 h-full w-full gap-0 overflow-y-auto sm:max-w-lg lg:max-w-lg" : "mx-auto max-h-[92svh] max-w-3xl overflow-y-auto rounded-t-2xl"}
+        side={isDesktop ? "right" : "bottom"}
       >
         <SheetHeader className="pb-0">
           <SheetTitle>{isCreate ? 'Новая сделка' : deal?.title}</SheetTitle>

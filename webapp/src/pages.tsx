@@ -7,7 +7,7 @@ import {
   SessionErrorSection,
   SessionLoadingSection,
 } from '@/components/WebRouteSections'
-import { MobileShell } from '@/components/MobileShell'
+import { AppShell } from '@/components/AppShell'
 import { WorkspaceShell } from '@/components/WorkspaceShell'
 import { AdminDashboard, AdminSettings, AdminUsers } from '@/features/admin'
 import {
@@ -178,9 +178,9 @@ function WorkspaceRoute({ anyRole = false, role }: { anyRole?: boolean; role?: U
 
   if (anyRole) {
     return (
-      <MobileShell user={auth.user}>
+      <AppShell onLogout={auth.logout} user={auth.user}>
         <Outlet />
-      </MobileShell>
+      </AppShell>
     )
   }
   return (
