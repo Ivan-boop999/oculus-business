@@ -28,13 +28,16 @@ export function startBackupLoop(db: DbClient, env: BackupEnv): void {
     }
   }
 
-  // первый бэкап — через час после старта, далее раз в сутки
+  // На free-тире процесс засыпает без трафика, суточный таймер может не дожить.
+  // Поэтому: бэкап через 2 минуты после старта (холодный старт = любой визит
+  // пользователя даёт свежую копию дня; S3-ключ за день один и тот же — PutObject
+  // просто перезапишет его идемпотентно), далее суточный интервал внутри процесса.
   setTimeout(() => {
     void run()
     const timer = setInterval(() => void run(), 24 * 60 * 60 * 1000)
     timer.unref?.()
-  }, 60 * 60 * 1000).unref?.()
-  console.log('backup loop armed (daily)')
+  }, 2 * 60 * 1000).unref?.()
+  console.log('backup loop armed (on-start + daily)')
 }
 
 async function createBackup(db: DbClient, env: BackupEnv): Promise<void> {

@@ -3,10 +3,12 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { useCrmBoardQuery } from '@/features/crm'
 import { useDevBoardQuery } from '@/features/devboard'
+import { useTxnsQuery } from '@/features/finance'
+import { currentMonthKey, formatMoneyShort } from '@/platform/format'
 import { useIsDesktop } from '@/platform/use-is-desktop'
 
-/// Глобальный поиск Ctrl+K (Cmd+K): сделки, задачи — по подстроке в названии.
-/// Данные берёт из закэшированных досок, без отдельного бэкенд-запроса.
+/// Глобальный поиск Ctrl+K (Cmd+K): сделки, задачи и операции месяца — по подстроке.
+/// Данные берёт из закэшированных запросов, без отдельного бэкенд-эндпоинта.
 export function GlobalSearch() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -15,6 +17,7 @@ export function GlobalSearch() {
   const isDesktop = useIsDesktop()
   const crm = useCrmBoardQuery()
   const dev = useDevBoardQuery()
+  const txns = useTxnsQuery(currentMonthKey())
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -38,7 +41,7 @@ export function GlobalSearch() {
   const needle = query.trim().toLowerCase()
 
   const results = useMemo(() => {
-    if (needle.length < 2) return { deals: [], tasks: [] }
+    if (needle.length < 2) return { deals: [], tasks: [], operations: [] }
     const deals = (crm.data?.stages ?? [])
       .flatMap((stage) => stage.deals.map((deal) => ({ deal, stage: stage.title })))
       .filter(({ deal }) => deal.title.toLowerCase().includes(needle))
@@ -47,8 +50,15 @@ export function GlobalSearch() {
       .flatMap((column) => column.tasks.map((task) => ({ task, column: column.title })))
       .filter(({ task }) => task.title.toLowerCase().includes(needle))
       .slice(0, 6)
-    return { deals, tasks }
-  }, [needle, crm.data, dev.data])
+    const operations = (txns.data?.items ?? [])
+      .filter(
+        (txn) =>
+          txn.category.toLowerCase().includes(needle) ||
+          (txn.comment ?? '').toLowerCase().includes(needle),
+      )
+      .slice(0, 6)
+    return { deals, tasks, operations }
+  }, [needle, crm.data, dev.data, txns.data])
 
   if (!open) return null
 
@@ -117,6 +127,30 @@ export function GlobalSearch() {
               <span className="text-[#A5B4FC]">{task.type === 'bug' ? '🐞' : task.type === 'idea' ? '💡' : '🚀'}</span>
               <span className="min-w-0 flex-1 truncate text-white">{task.title}</span>
               <span className="shrink-0 text-[11px] text-muted-foreground">{column}</span>
+            </button>
+          ))}
+          {results.operations.length > 0 && (
+            <p className="px-3 pt-3 pb-1 text-[10px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+              Операции месяца
+            </p>
+          )}
+          {results.operations.map((txn) => (
+            <button
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[rgba(99,102,241,0.1)]"
+              key={txn.id}
+              onClick={() => {
+                setOpen(false)
+                void navigate({ to: '/app/finance' })
+              }}
+            >
+              <span className={txn.kind === 'income' ? 'text-[#34D399]' : 'text-[#FB7185]'}>
+                {txn.kind === 'income' ? '↓' : '↑'}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-white">{txn.category}</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                {txn.kind === 'income' ? '+' : '−'}
+                {formatMoneyShort(txn.amount)} · {txn.occurredOn.slice(8)}.{txn.occurredOn.slice(5, 7)}
+              </span>
             </button>
           ))}
         </div>
