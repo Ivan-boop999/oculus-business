@@ -57,7 +57,7 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
       <FieldGroup className="gap-5">
         <div className="flex flex-col items-center gap-1 text-center">
           <Typography as="h1" variant="h3" balance>
-            Login to your account
+            Вход в аккаунт
           </Typography>
           <Typography variant="bodySm" tone="muted" balance>
             Введите email и пароль, чтобы войти
@@ -83,7 +83,7 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
                   clearFieldError('email', setFieldErrors)
                   setFormError(null)
                 }}
-                placeholder="m@example.com"
+                placeholder="you@company.ru"
                 type="email"
                 value={field.state.value}
               />
@@ -131,14 +131,14 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
             selector={(state) => state.isSubmitting}
             children={(isSubmitting) => (
               <Button disabled={isSubmitting} type="submit">
-                {isSubmitting ? 'Входим…' : 'Login'}
+                {isSubmitting ? 'Входим…' : 'Войти'}
               </Button>
             )}
           />
         </Field>
 
         <FieldDescription className="text-center">
-          Don&apos;t have an account?{' '}
+          Нет аккаунта?{' '}
           <Link search={{ returnTo }} to="/signup">
             Sign up
           </Link>

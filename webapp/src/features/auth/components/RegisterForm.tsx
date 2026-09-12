@@ -128,7 +128,7 @@ export function RegisterForm({ returnTo }: { returnTo?: string }) {
                 clearFieldError('email', setFieldErrors)
                 setFormError(null)
               }}
-              placeholder="m@example.com"
+              placeholder="you@company.ru"
               type="email"
               value={field.state.value}
             />
