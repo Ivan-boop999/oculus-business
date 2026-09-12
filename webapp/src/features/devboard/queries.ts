@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  createSprintRequestSchema,
+  sprintResponseSchema,
+  sprintsResponseSchema,
+} from '@oculus-business/contracts'
 import type {
+  CreateSprintRequest,
   CreateDevColumnRequest,
   CreateDevTaskRequest,
   UpdateDevColumnRequest,
@@ -133,4 +139,36 @@ export function useDeleteDevColumnMutation() {
     mutationFn: (id: string) => deleteDevColumn(transport, id),
     onSuccess: invalidate,
   })
+}
+
+export function useSprintsQuery() {
+  const { transport } = useAuth()
+  return useQuery({
+    queryKey: [...devQueryKeys.all, 'sprints'],
+    queryFn: ({ signal }) =>
+      transport.request('/api/dev/sprints', sprintsResponseSchema, { signal }),
+  })
+}
+
+export function useCreateSprintMutation() {
+  const { transport } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateSprintRequest) =>
+      transport.request('/api/dev/sprints', sprintResponseSchema, {
+        method: 'POST',
+        body: createSprintRequestSchema.parse(input),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: devQueryKeys.all })
+    },
+  })
+}
+
+export async function finishSprint(transport: AuthenticatedTransportLike, id: string) {
+  await transport.raw(`/api/dev/sprints/${id}/finish`, { method: 'POST' })
+}
+
+type AuthenticatedTransportLike = {
+  raw(path: string, options?: { method?: string }): Promise<Response>
 }

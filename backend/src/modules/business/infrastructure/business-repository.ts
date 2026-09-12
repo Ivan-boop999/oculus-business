@@ -30,6 +30,8 @@ import type {
   ExpectedPayment,
   CreateExpectedPaymentRequest,
   UpdateExpectedPaymentRequest,
+  Sprint,
+  CreateSprintRequest,
 } from '@oculus-business/contracts'
 
 import type { DbClient } from '../../../db'
@@ -78,7 +80,13 @@ function toDealDto(row: DealRow & { _count: { comments: number } }): Deal {
   }
 }
 
-function toDevTaskDto(row: DevTaskRow & { _count: { comments: number } }): DevTask {
+function toDevTaskDto(
+  row: DevTaskRow & {
+    _count: { comments: number }
+    deal: { title: string } | null
+    sprint: { name: string } | null
+  },
+): DevTask {
   return {
     id: row.id,
     title: row.title,
@@ -88,6 +96,11 @@ function toDevTaskDto(row: DevTaskRow & { _count: { comments: number } }): DevTa
     columnId: row.columnId,
     position: row.position,
     dueDate: toDateOnly(row.dueDate),
+    fixVersion: row.fixVersion,
+    dealId: row.dealId,
+    dealTitle: row.deal?.title ?? null,
+    sprintId: row.sprintId,
+    sprintName: row.sprint?.name ?? null,
     commentsCount: row._count.comments,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -170,7 +183,11 @@ const dealInclude = {
   _count: { select: { comments: true } },
   createdBy: { select: { displayName: true } },
 } as const
-const devTaskInclude = { _count: { select: { comments: true } } } as const
+const devTaskInclude = {
+  _count: { select: { comments: true } },
+  deal: { select: { title: true } },
+  sprint: { select: { name: true } },
+} as const
 const commentAuthorInclude = { author: { select: { displayName: true } } } as const
 
 export function createPrismaBusinessRepository(db: DbClient): BusinessRepository {
@@ -391,6 +408,9 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
             type: input.type,
             priority: input.priority,
             dueDate: input.dueDate ? fromDateOnly(input.dueDate) : null,
+            fixVersion: input.fixVersion ?? null,
+            dealId: input.dealId ?? null,
+            sprintId: input.sprintId ?? null,
             columnId,
             position: (last?.position ?? -1) + 1,
             createdById,
@@ -409,6 +429,9 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         if ('type' in input) data.type = input.type
         if ('priority' in input) data.priority = input.priority
         if ('dueDate' in input) data.dueDate = input.dueDate ? fromDateOnly(input.dueDate) : null
+        if ('fixVersion' in input) data.fixVersion = input.fixVersion ?? null
+        if ('dealId' in input) data.dealId = input.dealId ?? null
+        if ('sprintId' in input) data.sprintId = input.sprintId ?? null
         if ('columnId' in input && input.columnId !== undefined) data.columnId = input.columnId
         const row = await db.devTask.update({ where: { id }, data, include: devTaskInclude })
         return toDevTaskDto(row)
@@ -694,6 +717,28 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
       })
     },
 
+    async listSprints() {
+      const rows = await db.sprint.findMany({ orderBy: { startsOn: 'desc' } })
+      return rows.map(mapSprint)
+    },
+
+    async createSprint(input) {
+      const row = await db.sprint.create({
+        data: {
+          name: input.name,
+          startsOn: fromDateOnly(input.startsOn),
+          endsOn: fromDateOnly(input.endsOn),
+        },
+      })
+      return mapSprint(row)
+    },
+
+    async finishSprint(id) {
+      await guarded(async () => {
+        await db.sprint.update({ where: { id }, data: { isActive: false } })
+      })
+    },
+
     async getGoal(month) {
       const row = await db.monthGoal.findUnique({ where: { month } })
       return row ?? { month, mrrGoal: 0, incomeGoal: 0 }
@@ -737,6 +782,18 @@ function mapExpected(row: Awaited<ReturnType<DbClient['expectedPayment']['findUn
     dueDate: toDateOnly(row.dueDate) ?? '',
     probability: row.probability,
     dealId: row.dealId,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+function mapSprint(row: Awaited<ReturnType<DbClient['sprint']['findUniqueOrThrow']>>): Sprint {
+  return {
+    id: row.id,
+    name: row.name,
+    startsOn: toDateOnly(row.startsOn) ?? '',
+    endsOn: toDateOnly(row.endsOn) ?? '',
+    isActive: row.isActive,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }

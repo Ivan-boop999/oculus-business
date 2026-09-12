@@ -7,6 +7,9 @@ import {
   createDevColumnRequestSchema,
   createDevTaskCommentRequestSchema,
   createDevTaskRequestSchema,
+  createSprintRequestSchema,
+  sprintResponseSchema,
+  sprintsResponseSchema,
   createRecurringItemRequestSchema,
   cashflowHistoryResponseSchema,
   createExpectedPaymentRequestSchema,
@@ -302,6 +305,38 @@ const updateDevColumnRoute = createRoute({
   },
   responses: {
     200: { content: json(devColumnResponseSchema), description: 'Updated column' },
+    ...standardErrors,
+  },
+})
+
+const sprintsRoute = createRoute({
+  method: 'get',
+  path: '/sprints',
+  security: bearerSecurity,
+  responses: {
+    200: { content: json(sprintsResponseSchema), description: 'Sprints' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const createSprintRoute = createRoute({
+  method: 'post',
+  path: '/sprints',
+  security: bearerSecurity,
+  request: { body: { content: json(createSprintRequestSchema) } },
+  responses: {
+    201: { content: json(sprintResponseSchema), description: 'Created sprint' },
+    ...standardErrors,
+  },
+})
+
+const finishSprintRoute = createRoute({
+  method: 'post',
+  path: '/sprints/{id}/finish',
+  security: bearerSecurity,
+  request: { params: idParamSchema },
+  responses: {
+    204: { description: 'Sprint finished' },
     ...standardErrors,
   },
 })
@@ -704,6 +739,17 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
       service.addDevTaskComment(c.req.valid('param').id, c.var.user.id, body.body),
     )
     return c.json({ comments }, 201)
+  })
+  dev.openapi(sprintsRoute, async (c) => {
+    return c.json(await executeBusiness(() => service.sprints()), 200)
+  })
+  dev.openapi(createSprintRoute, async (c) => {
+    const sprint = await executeBusiness(() => service.createSprint(c.req.valid('json')))
+    return c.json({ sprint }, 201)
+  })
+  dev.openapi(finishSprintRoute, async (c) => {
+    await executeBusiness(() => service.finishSprint(c.req.valid('param').id))
+    return c.body(null, 204)
   })
   dev.openapi(createDevColumnRoute, async (c) => {
     const column = await executeBusiness(() => service.createDevColumn(c.req.valid('json')))

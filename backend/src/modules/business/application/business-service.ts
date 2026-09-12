@@ -27,6 +27,8 @@ import type {
   ExpectedPayment,
   CreateExpectedPaymentRequest,
   UpdateExpectedPaymentRequest,
+  Sprint,
+  CreateSprintRequest,
   RecurringItem,
   Txn,
   CreateTxnRequest,
@@ -53,18 +55,25 @@ function addMonthsLocal(month: string, count: number): string {
   return `${nextYear}-${String(nextMon).padStart(2, '0')}`
 }
 
+export type TeamNotifier = {
+  notify(message: string): Promise<void>
+}
+
 type BusinessServiceOptions = {
   clock: Clock
+  notifier?: TeamNotifier
   repository: BusinessRepository
 }
 
 /// Сценарии использования: CRUD с валидацией ссылок + сводные вычисления на доменных функциях.
 export class BusinessService {
   private readonly clock: Clock
+  private readonly notifier: TeamNotifier | undefined
   private readonly repository: BusinessRepository
 
-  constructor({ clock, repository }: BusinessServiceOptions) {
+  constructor({ clock, notifier, repository }: BusinessServiceOptions) {
     this.clock = clock
+    this.notifier = notifier
     this.repository = repository
   }
 
@@ -75,6 +84,13 @@ export class BusinessService {
   }
 
   async createDeal(input: CreateDealRequest, createdById: string): Promise<Deal> {
+    void this.notifier
+      ?.notify(
+        '🆕 Новая сделка: ' +
+          input.title +
+          (input.monthlyAmount > 0 ? ' (' + input.monthlyAmount + ' ₽/мес)' : ''),
+      )
+      .catch(() => undefined)
     let stageId = input.stageId
     if (stageId === undefined) {
       stageId = (await this.repository.firstStageId()) ?? undefined
@@ -90,7 +106,19 @@ export class BusinessService {
   }
 
   async moveDeal(id: string, stageId: string, position: number): Promise<Deal> {
-    return this.repository.moveDeal(id, stageId, position)
+    const moved = await this.repository.moveDeal(id, stageId, position)
+    const stages = await this.repository.listCrmBoard()
+    const target = stages.find((stage) => stage.id === stageId)
+    if (target?.isWon) {
+      void this.notifier
+        ?.notify(
+          '🎉 Сделка выиграна: ' +
+            moved.title +
+            (moved.monthlyAmount > 0 ? ' (+' + moved.monthlyAmount + ' ₽/мес MRR)' : ''),
+        )
+        .catch(() => undefined)
+    }
+    return moved
   }
 
   async deleteDeal(id: string): Promise<void> {
@@ -106,6 +134,7 @@ export class BusinessService {
     authorId: string,
     body: string,
   ): Promise<DealComment[]> {
+    void this.notifier?.notify('💬 Новый комментарий по сделке').catch(() => undefined)
     await this.repository.createDealComment(dealId, authorId, body)
     return this.repository.listDealComments(dealId)
   }
@@ -541,6 +570,21 @@ export class BusinessService {
       createdById,
     )
     await this.repository.deleteExpectedPayment(id)
+  }
+
+  // ------------------------------------------------ Спринты
+
+  async sprints(): Promise<{ items: Sprint[] }> {
+    const items = await this.repository.listSprints()
+    return { items }
+  }
+
+  async createSprint(input: CreateSprintRequest): Promise<Sprint> {
+    return this.repository.createSprint(input)
+  }
+
+  async finishSprint(id: string): Promise<void> {
+    await this.repository.finishSprint(id)
   }
 
   // ---------------------------------------------------------------- Дашборд

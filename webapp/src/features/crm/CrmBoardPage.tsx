@@ -17,6 +17,7 @@ import {
   useMoveDealMutation,
   useUpdateStageMutation,
 } from './queries'
+import { CalendarView } from './CalendarView'
 import { DealSheet } from './DealSheet'
 
 /// Канбан-доска сделок: горизонтальный скролл этапов, карточки-сделки,
@@ -31,6 +32,7 @@ export function CrmBoardPage() {
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null)
   const [mineOnly, setMineOnly] = useState(false)
   const [lostPromptStageId, setLostPromptStageId] = useState<string | null>(null)
+  const [calendarMode, setCalendarMode] = useState(false)
   const { user } = useAuth()
 
   if (board.isPending) {
@@ -76,10 +78,14 @@ export function CrmBoardPage() {
   return (
     <div className="grid gap-3">
       <BoardHeader
+        calendarMode={calendarMode}
         mineOnly={mineOnly}
+        onToggleCalendar={() => setCalendarMode((value) => !value)}
         onToggleMine={() => setMineOnly((value) => !value)}
         stages={stages}
       />
+      {calendarMode && <CalendarView onOpenDeal={setSelectedDeal} stages={allStages} />}
+      {!calendarMode && (
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:gap-4 lg:px-0">
         {stages.map((stage) => (
           <section
@@ -212,6 +218,7 @@ export function CrmBoardPage() {
           </Button>
         </div>
       </div>
+      )}
 
       <p className="text-xs text-muted-foreground lg:hidden">
         На телефоне откройте карточку и нажмите «Переместить». С компьютера карточку можно
@@ -235,11 +242,15 @@ export function CrmBoardPage() {
 }
 
 function BoardHeader({
+  calendarMode,
   mineOnly,
+  onToggleCalendar,
   onToggleMine,
   stages,
 }: {
+  calendarMode: boolean
   mineOnly: boolean
+  onToggleCalendar: () => void
   onToggleMine: () => void
   stages: StageWithDeals[]
 }) {
@@ -272,6 +283,16 @@ function BoardHeader({
       >
         Отчёт
       </Link>
+      <button
+        className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+          calendarMode
+            ? 'border-[#6366F1]/40 bg-[#6366F1]/15 text-[#A5B4FC]'
+            : 'border-white/10 bg-white/5 text-muted-foreground hover:text-white'
+        }`}
+        onClick={onToggleCalendar}
+      >
+        Календарь
+      </button>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">в работе: {activeCount}</Badge>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">пайплайн: {formatMoneyShort(pipelineMonthly)}/мес</Badge>
       <Badge

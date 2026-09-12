@@ -17,6 +17,7 @@ import type { UserDto } from '@oculus-business/contracts'
 import type { PropsWithChildren } from 'react'
 
 import { BrandMark } from '@/components/BrandMark'
+import { GlobalSearch } from '@/components/GlobalSearch'
 
 /// Адаптивная оболочка приложения в фирменном стиле OCULUS.
 /// ПК (lg+): боковое меню с раскрывающимися группами (клик по «Финансам»
@@ -194,6 +195,8 @@ export function AppShell({
           </Link>
         </div>
       </header>
+
+      <GlobalSearch />
 
       {/* ------------------------------------------------ Контент */}
       <main className="px-4 pt-4 pb-24 lg:pl-[17.5rem] lg:pr-8 lg:pt-6 lg:pb-10">

@@ -27,6 +27,8 @@ import type {
   CreateExpectedPaymentRequest,
   UpdateExpectedPaymentRequest,
   DealHistoryEntry,
+  Sprint,
+  CreateSprintRequest,
 } from '@oculus-business/contracts'
 
 /// Репозиторий бизнес-модуля: единственная точка доступа к хранилищу.
@@ -90,6 +92,9 @@ export type BusinessRepository = {
   createExpectedPayment(input: CreateExpectedPaymentRequest): Promise<ExpectedPayment>
   updateExpectedPayment(id: string, input: UpdateExpectedPaymentRequest): Promise<ExpectedPayment>
   deleteExpectedPayment(id: string): Promise<void>
+  listSprints(): Promise<Sprint[]>
+  createSprint(input: CreateSprintRequest): Promise<Sprint>
+  finishSprint(id: string): Promise<void>
   saveGoal(goal: MonthGoal): Promise<MonthGoal>
 }
 

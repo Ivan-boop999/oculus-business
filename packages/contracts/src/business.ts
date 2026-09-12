@@ -132,6 +132,29 @@ export const crmStageResponseSchema = z.object({ stage: crmStageSchema }).strict
 export const devTaskTypeSchema = z.enum(['bug', 'feature', 'idea'])
 export const devTaskPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent'])
 
+export const sprintSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+    startsOn: dateOnlySchema,
+    endsOn: dateOnlySchema,
+    isActive: z.boolean(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict()
+
+export const createSprintRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    startsOn: dateOnlySchema,
+    endsOn: dateOnlySchema,
+  })
+  .strict()
+
+export const sprintResponseSchema = z.object({ sprint: sprintSchema }).strict()
+export const sprintsResponseSchema = z.object({ items: z.array(sprintSchema) }).strict()
+
 export const devColumnSchema = z
   .object({
     id: z.string().uuid(),
@@ -150,6 +173,11 @@ export const devTaskSchema = z
     columnId: z.string().uuid(),
     position: z.number().int(),
     dueDate: dateOnlySchema.nullable(),
+    fixVersion: z.string().nullable(),
+    dealId: z.string().uuid().nullable(),
+    dealTitle: z.string().nullable(),
+    sprintId: z.string().uuid().nullable(),
+    sprintName: z.string().nullable(),
     commentsCount: z.number().int(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
@@ -180,6 +208,9 @@ export const createDevTaskRequestSchema = z
     type: devTaskTypeSchema.default('feature'),
     priority: devTaskPrioritySchema.default('medium'),
     dueDate: dateOnlySchema.nullable().optional(),
+    fixVersion: nullableTrimmed(60).optional(),
+    dealId: z.string().uuid().nullable().optional(),
+    sprintId: z.string().uuid().nullable().optional(),
     columnId: z.string().uuid().optional(),
   })
   .strict()
@@ -561,6 +592,8 @@ export type CrmReport = z.infer<typeof crmReportResponseSchema>
 export type MrrMovement = z.infer<typeof mrrMovementResponseSchema>
 export type CashflowHistory = z.infer<typeof cashflowHistoryResponseSchema>
 export type ExpectedPayment = z.infer<typeof expectedPaymentSchema>
+export type Sprint = z.infer<typeof sprintSchema>
+export type CreateSprintRequest = z.infer<typeof createSprintRequestSchema>
 export type CreateExpectedPaymentRequest = z.infer<typeof createExpectedPaymentRequestSchema>
 export type UpdateExpectedPaymentRequest = z.infer<typeof updateExpectedPaymentRequestSchema>
 export type FinanceSummary = z.infer<typeof financeSummaryResponseSchema>

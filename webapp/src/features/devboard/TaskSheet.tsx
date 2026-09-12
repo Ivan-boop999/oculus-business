@@ -18,8 +18,10 @@ import {
   useDeleteDevTaskMutation,
   useDevTaskCommentsQuery,
   useMoveDevTaskMutation,
+  useSprintsQuery,
   useUpdateDevTaskMutation,
 } from './queries'
+import { useCrmBoardQuery } from '@/features/crm'
 
 type FormState = {
   title: string
@@ -27,6 +29,9 @@ type FormState = {
   type: DevTaskType
   priority: DevTaskPriority
   dueDate: string
+  fixVersion: string
+  dealId: string
+  sprintId: string
 }
 
 const emptyForm: FormState = {
@@ -35,6 +40,9 @@ const emptyForm: FormState = {
   type: 'feature',
   priority: 'medium',
   dueDate: '',
+  fixVersion: '',
+  dealId: '',
+  sprintId: '',
 }
 
 export function TaskSheet({
@@ -67,6 +75,9 @@ export function TaskSheet({
         type: task.type,
         priority: task.priority,
         dueDate: task.dueDate ?? '',
+        fixVersion: task.fixVersion ?? '',
+        dealId: task.dealId ?? '',
+        sprintId: task.sprintId ?? '',
       })
     } else {
       setForm(emptyForm)
@@ -78,7 +89,19 @@ export function TaskSheet({
   const moveTask = useMoveDevTaskMutation()
   const deleteTask = useDeleteDevTaskMutation()
   const comments = useDevTaskCommentsQuery(open && task !== null ? task.id : null)
+  const crmBoard = useCrmBoardQuery()
+  const sprints = useSprintsQuery()
   const addComment = useAddDevTaskCommentMutation(task?.id ?? '')
+
+  const versionOptions = [
+    ...new Set(
+      columns.flatMap((column) => column.tasks.map((item) => item.fixVersion).filter(Boolean)),
+    ),
+  ].sort()
+  const dealOptions = (crmBoard.data?.stages ?? []).flatMap((stage) =>
+    stage.deals.map((deal) => ({ id: deal.id, title: deal.title })),
+  )
+  const sprintOptions = sprints.data?.items ?? []
 
   const set = (patch: Partial<FormState>) => setForm((prev) => ({ ...prev, ...patch }))
 
@@ -93,6 +116,9 @@ export function TaskSheet({
       type: form.type,
       priority: form.priority,
       dueDate: form.dueDate || null,
+      fixVersion: form.fixVersion.trim() || null,
+      dealId: form.dealId || null,
+      sprintId: form.sprintId || null,
     }
     try {
       if (isCreate) {
@@ -174,6 +200,52 @@ export function TaskSheet({
               rows={3}
               value={form.description}
             />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Версия (релиз)">
+              <Input
+                list="task-versions"
+                onChange={(event) => set({ fixVersion: event.target.value })}
+                placeholder="например, 1.4"
+                value={form.fixVersion}
+              />
+              <datalist id="task-versions">
+                {versionOptions.map((version) => (
+                  <option key={version ?? 'v'} value={version ?? ''} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Клиент (сделка)">
+              <select
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                onChange={(event) => set({ dealId: event.target.value })}
+                value={form.dealId}
+              >
+                <option value="">— не привязана —</option>
+                {dealOptions.map((deal) => (
+                  <option key={deal.id} value={deal.id}>
+                    {deal.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Спринт">
+            <select
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              onChange={(event) => set({ sprintId: event.target.value })}
+              value={form.sprintId}
+            >
+              <option value="">— без спринта —</option>
+              {sprintOptions.map((sprint) => (
+                <option key={sprint.id} value={sprint.id}>
+                  {sprint.name} ({sprint.startsOn} — {sprint.endsOn})
+                  {sprint.isActive ? '' : ' · завершён'}
+                </option>
+              ))}
+            </select>
           </Field>
 
           {task && (
