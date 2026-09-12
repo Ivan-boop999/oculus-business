@@ -279,8 +279,21 @@ export function DealSheet({
           <Field label="Контрагент">
             <select
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              onChange={(event) => set({ companyName: event.target.value })}
-              value={form.companyName}
+              onChange={(event) => {
+                if (event.target.value === '__new__') {
+                  const name = window.prompt('Название нового контрагента')
+                  if (name && name.trim()) set({ companyName: name.trim() })
+                  return
+                }
+                set({ companyName: event.target.value })
+              }}
+              value={
+                (companies.data?.items ?? []).some((company) => company.name === form.companyName)
+                  ? form.companyName
+                  : form.companyName
+                    ? '__custom__'
+                    : ''
+              }
             >
               <option value="">— не выбран —</option>
               {(companies.data?.items ?? []).map((company) => (
@@ -289,10 +302,14 @@ export function DealSheet({
                   {company.dealsCount > 0 ? ` (${company.dealsCount})` : ''}
                 </option>
               ))}
+              {form.companyName &&
+                !(companies.data?.items ?? []).some(
+                  (company) => company.name === form.companyName,
+                ) && <option value="__custom__">{form.companyName} (новый)</option>}
+              <option value="__new__">+ Новая компания…</option>
             </select>
             <p className="text-[10px] text-muted-foreground">
-              Список ведётся на экране «Контрагенты»; новая компания появится, когда сохранишь
-              сделку с новым названием.
+              Список ведётся на экране «Контрагенты»; новый сохранится вместе со сделкой.
             </p>
           </Field>
 
