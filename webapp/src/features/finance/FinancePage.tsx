@@ -121,8 +121,8 @@ export function FinancePage() {
           </p>
         )}
         {/* ПК: таблица операций */}
-        <div className="hidden overflow-hidden rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.035] to-transparent lg:block">
-          <table className="w-full text-sm">
+        <div className="hidden overflow-x-auto rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.035] to-transparent lg:block">
+          <table className="w-full min-w-max text-sm">
             <thead className="bg-white/[0.04] text-left text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
               <tr>
                 <th className="px-3 py-2 font-medium">Дата</th>
