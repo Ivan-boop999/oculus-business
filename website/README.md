@@ -1,5 +1,7 @@
 # Website
 
+> **DEFERRED (не активна в этом проекте).** Окулус Бизнес — внутренний инструмент за логином, публичных SEO-страниц нет; каталог остаётся нетронутым с шаблона и не деплоится. Решение зафиксировано в CHECKLIST.md, секция Active surfaces.
+
 The website workspace is a separate Astro project for public, SEO-facing surfaces: landing pages, marketing/content sites, and the public catalog of product sites such as a marketplace. It is the SSG-first counterpart to the CSR `webapp` (which lives behind auth and needs no SEO). Read the mandatory cross-surface contract in [../docs/WEB_SURFACES.md](../docs/WEB_SURFACES.md) before adding backend-built product data, a cart, checkout, orders, subscriptions, entitlements, or payments.
 
 ## Stack

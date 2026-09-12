@@ -1,5 +1,7 @@
 # Mobile Template
 
+> **DEFERRED (не активна в этом проекте).** Приложение построено как мобильный веб (PWA-стиль) на ветке master; ветка mobile с Expo остаётся нетронутой до решения владельца о нативной сборке. См. CHECKLIST.md Active surfaces.
+
 The runnable Expo mobile app is intentionally not part of `master`.
 
 Use the `mobile` branch when a project needs the mobile template:
