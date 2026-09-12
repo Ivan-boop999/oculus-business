@@ -24,7 +24,9 @@ const DEFAULT_STAGES: Array<{ title: string; isWon?: boolean; isLost?: boolean }
 const DEFAULT_DEV_COLUMNS = ['Бэклог', 'В работе', 'На проверке', 'Готово']
 
 async function main() {
-  const db = createPrisma()
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is required')
+  const db = createPrisma(url)
 
   // --- Справочники ------------------------------------------------------------
   const stageCount = await db.crmStage.count()
