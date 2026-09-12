@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import {
+  ArrowRight01Icon,
   BarChartIcon,
   Calendar01Icon,
   DashboardSquare01Icon,
@@ -10,34 +12,63 @@ import {
   Wallet01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Link, useLocation } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import type { UserDto } from '@oculus-business/contracts'
 import type { PropsWithChildren } from 'react'
 
 import { BrandMark } from '@/components/BrandMark'
 
-/// Адаптивная оболочка приложения в фирменном стиле OCULUS:
-/// тёмный «командный центр», индиго-акцент со свечением, aurora-подсветка фона.
-/// Телефон (<lg): липкий заголовок + нижняя навигация. ПК (lg+): боковое меню.
-type NavItem = {
-  icon: typeof DashboardSquare01Icon
+/// Адаптивная оболочка приложения в фирменном стиле OCULUS.
+/// ПК (lg+): боковое меню с раскрывающимися группами (клик по «Финансам»
+/// открывает подвкладки, повторный — сворачивает; активный маршрут разворачивает
+/// свою группу сам). Телефон: заголовок + нижняя навигация.
+type NavIcon = typeof DashboardSquare01Icon
+
+type NavLeaf = {
+  adminOnly?: boolean
+  icon: NavIcon
   label: string
   to: string
   exact?: boolean
 }
 
-const MAIN_NAV: ReadonlyArray<NavItem> = [
+type NavNode = NavLeaf & {
+  children?: ReadonlyArray<NavLeaf>
+}
+
+const NAV: ReadonlyArray<NavNode> = [
   { label: 'Обзор', to: '/app', icon: DashboardSquare01Icon, exact: true },
   { label: 'Сделки', to: '/app/crm', icon: HandshakeIcon },
-  { label: 'Финансы', to: '/app/finance', icon: Wallet01Icon, exact: true },
+  {
+    label: 'Финансы',
+    to: '/app/finance',
+    icon: Wallet01Icon,
+    exact: true,
+    children: [
+      { label: 'Операции', to: '/app/finance', icon: Wallet01Icon, exact: true },
+      { label: 'Регулярные платежи', to: '/app/finance/recurring', icon: Calendar01Icon },
+      { label: 'Прогноз и runway', to: '/app/finance/forecast', icon: BarChartIcon },
+    ],
+  },
   { label: 'Задачи', to: '/app/tasks', icon: Task01Icon },
 ]
 
-const FINANCE_SUBNAV: ReadonlyArray<NavItem> = [
-  { label: 'Операции', to: '/app/finance', icon: Wallet01Icon, exact: true },
-  { label: 'Регулярные платежи', to: '/app/finance/recurring', icon: Calendar01Icon },
-  { label: 'Прогноз и runway', to: '/app/finance/forecast', icon: BarChartIcon },
+const FOOTER_NAV: ReadonlyArray<NavLeaf> = [
+  { label: 'Профиль', to: '/app/profile', icon: UserIcon },
+  { label: 'Настройки', to: '/app/settings', icon: Settings01Icon },
+  { label: 'Пользователи', to: '/admin/users', icon: UserGroupIcon, adminOnly: true },
 ]
+
+const MOBILE_TABS: ReadonlyArray<NavLeaf> = [
+  { label: 'Обзор', to: '/app', icon: DashboardSquare01Icon, exact: true },
+  { label: 'Сделки', to: '/app/crm', icon: HandshakeIcon },
+  { label: 'Финансы', to: '/app/finance', icon: Wallet01Icon },
+  { label: 'Задачи', to: '/app/tasks', icon: Task01Icon },
+]
+
+function matches(item: { exact?: boolean; to: string }, pathname: string) {
+  return item.exact ? pathname === item.to : pathname.startsWith(item.to)
+}
 
 export function AppShell({
   children,
@@ -48,8 +79,26 @@ export function AppShell({
   user: UserDto
 }>) {
   const pathname = useLocation({ select: (location) => location.pathname })
-  const isActive = (item: NavItem) =>
-    item.exact ? pathname === item.to : pathname.startsWith(item.to)
+  const navigate = useNavigate()
+  const financeActive = pathname.startsWith('/app/finance')
+
+  // Какие группы раскрыты. Группа своей активной вкладки разворачивается автоматически.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    (financeActive ? { Финансы: true } : {}) as Record<string, boolean>,
+  )
+
+  useEffect(() => {
+    if (financeActive) {
+      setOpenGroups((prev) => ({ ...prev, Финансы: true }))
+    }
+  }, [financeActive])
+
+  const toggleGroup = (node: NavNode) => {
+    const willOpen = !(openGroups[node.label] ?? false)
+    setOpenGroups((prev) => ({ ...prev, [node.label]: willOpen }))
+    // Раскрытие группы заодно ведёт на её основную страницу.
+    if (willOpen) void navigate({ to: node.to })
+  }
 
   return (
     <div className="relative min-h-svh bg-background">
@@ -81,32 +130,26 @@ export function AppShell({
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-          {MAIN_NAV.map((item) => (
-            <SidebarLink active={isActive(item)} item={item} key={item.to} />
-          ))}
-
-          <p className="mt-5 px-3 pb-1 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground/70 uppercase">
-            Финансы
-          </p>
-          {FINANCE_SUBNAV.map((item) => (
-            <SidebarLink active={isActive(item)} item={item} key={item.to} nested />
-          ))}
+          {NAV.map((node) =>
+            node.children ? (
+              <NavGroup
+                key={node.label}
+                onToggle={() => toggleGroup(node)}
+                open={openGroups[node.label] ?? false}
+                node={node}
+                pathname={pathname}
+              />
+            ) : (
+              <SidebarLink active={matches(node, pathname)} item={node} key={node.label} />
+            ),
+          )}
         </nav>
 
         <div className="grid gap-1 border-t border-sidebar-border p-3">
-          <SidebarLink
-            active={pathname.startsWith('/app/profile')}
-            item={{ label: 'Профиль', to: '/app/profile', icon: UserIcon }}
-          />
-          <SidebarLink
-            active={pathname.startsWith('/app/settings')}
-            item={{ label: 'Настройки', to: '/app/settings', icon: Settings01Icon }}
-          />
-          {user.role === 'admin' && (
-            <SidebarLink
-              active={false}
-              item={{ label: 'Пользователи', to: '/admin/users', icon: UserGroupIcon }}
-            />
+          {FOOTER_NAV.map((item) =>
+            item.adminOnly && user.role !== 'admin' ? null : (
+              <SidebarLink active={matches(item, pathname)} item={item} key={item.label} />
+            ),
           )}
           <button
             className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
@@ -164,8 +207,8 @@ export function AppShell({
           className="pointer-events-none absolute inset-x-0 -top-16 h-16 bg-gradient-to-t from-background to-transparent"
         />
         <div className="mx-auto grid w-full max-w-3xl grid-cols-4">
-          {MAIN_NAV.map((item) => {
-            const active = isActive(item)
+          {MOBILE_TABS.map((item) => {
+            const active = matches(item, pathname)
             return (
               <Link
                 className={`relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
@@ -192,14 +235,75 @@ export function AppShell({
   )
 }
 
+/// Пункт с подвкладками: строка-переключатель + раскрывающийся список.
+function NavGroup({
+  node,
+  open,
+  onToggle,
+  pathname,
+}: {
+  node: NavNode
+  open: boolean
+  onToggle: () => void
+  pathname: string
+}) {
+  const childActive = node.children?.some((child) => matches(child, pathname)) ?? false
+  const active = matches(node, pathname) || childActive
+
+  return (
+    <div>
+      <button
+        aria-expanded={open}
+        className={`group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-all duration-150 ${
+          active
+            ? 'bg-[rgba(99,102,241,0.13)] font-medium text-[#A5B4FC] shadow-[inset_0_0_0_1px_rgba(99,102,241,0.25)]'
+            : 'text-muted-foreground hover:bg-white/5 hover:text-white'
+        }`}
+        onClick={onToggle}
+      >
+        {active && (
+          <span className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#818CF8] shadow-[0_0_10px_rgba(129,140,248,0.9)]" />
+        )}
+        <HugeiconsIcon
+          className={active ? 'size-4 shrink-0 drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]' : 'size-4 shrink-0'}
+          icon={node.icon}
+          strokeWidth={1.9}
+        />
+        <span className="flex-1 truncate">{node.label}</span>
+        <HugeiconsIcon
+          className={`size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${
+            open ? 'rotate-90' : ''
+          }`}
+          icon={ArrowRight01Icon}
+          strokeWidth={2}
+        />
+      </button>
+
+      <div
+        className={`grid transition-all duration-200 ease-out ${
+          open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="relative ml-[1.4rem] grid gap-0.5 border-l border-white/8 py-1 pl-2">
+            {node.children?.map((child) => (
+              <SidebarLink active={matches(child, pathname)} compact item={child} key={child.to} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SidebarLink({
   active,
+  compact = false,
   item,
-  nested = false,
 }: {
   active: boolean
-  item: NavItem
-  nested?: boolean
+  compact?: boolean
+  item: NavLeaf
 }) {
   return (
     <Link
@@ -207,11 +311,14 @@ function SidebarLink({
         active
           ? 'bg-[rgba(99,102,241,0.13)] font-medium text-[#A5B4FC] shadow-[inset_0_0_0_1px_rgba(99,102,241,0.25)]'
           : 'text-muted-foreground hover:bg-white/5 hover:text-white'
-      } ${nested ? 'pl-6.5 text-[13px]' : ''}`}
+      } ${compact ? 'py-1.5 text-[13px]' : ''}`}
       to={item.to}
     >
-      {active && (
+      {active && !compact && (
         <span className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#818CF8] shadow-[0_0_10px_rgba(129,140,248,0.9)]" />
+      )}
+      {active && compact && (
+        <span className="absolute top-1/2 left-0 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[#818CF8] shadow-[0_0_10px_rgba(129,140,248,0.9)]" />
       )}
       <HugeiconsIcon
         className={active ? 'size-4 shrink-0 drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]' : 'size-4 shrink-0'}
