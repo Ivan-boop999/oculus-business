@@ -36,4 +36,6 @@ ENV NODE_ENV=production
 
 USER bun
 
-CMD ["sh", "-c", "bun run prisma:deploy && bun scripts/bootstrap-business.ts && exec bun src/index.ts"]
+# Миграции с повторами: Neon (free) просыпается дольше 10-секундного advisory-lock
+# таймаута Prisma, поэтому первый запуск migrate deploy может споткнуться о холодную базу.
+CMD ["sh", "-c", "for i in 1 2 3 4 5; do bun run prisma:deploy && break; echo \"migrate retry $i\"; sleep 12; done && bun scripts/bootstrap-business.ts && exec bun src/index.ts"]
