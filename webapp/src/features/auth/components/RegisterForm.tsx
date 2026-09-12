@@ -168,7 +168,7 @@ export function RegisterForm({ returnTo }: { returnTo?: string }) {
 
         <form.Field name="confirmPassword" children={(field) => (
           <Field data-invalid={hasErrors(fieldErrors.confirmPassword)}>
-            <FieldLabel htmlFor={confirmPasswordId}>Confirm Password</FieldLabel>
+            <FieldLabel htmlFor={confirmPasswordId}>Повтор пароля</FieldLabel>
             <PasswordInput
               aria-describedby={errorId(fieldErrors.confirmPassword, confirmPasswordErrorId)}
               aria-invalid={hasErrors(fieldErrors.confirmPassword)}
