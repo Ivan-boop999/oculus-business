@@ -469,7 +469,7 @@ export const crmReportResponseSchema = z
 
 export const mrrMovementMonthSchema = z
   .object({
-    month: z.string().regex(/^d{4}-d{2}$/),
+    month: z.string().regex(/^\d{4}-\d{2}$/),
     newMrr: z.number().int(),
     churnedMrr: z.number().int(),
     totalMrr: z.number().int(),
@@ -482,7 +482,7 @@ export const mrrMovementResponseSchema = z
 
 export const cashflowMonthSchema = z
   .object({
-    month: z.string().regex(/^d{4}-d{2}$/),
+    month: z.string().regex(/^\d{4}-\d{2}$/),
     income: z.number().int(),
     expense: z.number().int(),
     net: z.number().int(),

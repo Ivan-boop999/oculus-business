@@ -279,7 +279,14 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         for (let index = 0; index < ordered.length; index += 1) {
           await tx.deal.update({
             where: { id: ordered[index].id },
-            data: { position: index, stageId },
+            data: {
+              position: index,
+              stageId,
+              // Дата смены этапа — только перемещаемой сделке, не всему порядку.
+              ...(moving.stageId !== stageId && ordered[index].id === id
+                ? { lastStageChangeAt: now }
+                : {}),
+            },
           })
         }
         const row = await tx.deal.findUniqueOrThrow({ where: { id }, include: dealInclude })

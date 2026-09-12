@@ -160,13 +160,8 @@ function ExpectedPayments() {
 
   const received = useMutation({
     mutationFn: (id: string) =>
-      transport.request(`/api/finance/expected/${id}/received`, expectedPaymentsResponseSchema, {
-        method: 'POST',
-      }).catch(async (caught) => {
-        // 204 без тела — парсер JSON ждёт объект, успешный ответ проверяем по статусу.
-        if (caught instanceof TypeError) throw caught
-        throw caught
-      }),
+      // 204 без тела — забираем через raw, парсинг JSON не нужен.
+      transport.raw(`/api/finance/expected/${id}/received`, { method: 'POST' }),
     onSuccess: () => invalidate(),
   })
 

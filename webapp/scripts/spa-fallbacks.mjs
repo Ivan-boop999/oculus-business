@@ -17,6 +17,7 @@ const ROUTES = [
   '/reset-password',
   '/app',
   '/app/crm',
+  '/app/crm/report',
   '/app/finance',
   '/app/finance/recurring',
   '/app/finance/forecast',
