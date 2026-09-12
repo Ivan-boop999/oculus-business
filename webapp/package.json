@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/spa-fallbacks.mjs",
     "typecheck": "tsc -b",
     "test": "bun test tests",
     "test:build-contracts": "bun test build-contracts",
