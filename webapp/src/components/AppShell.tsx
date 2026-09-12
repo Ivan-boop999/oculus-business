@@ -197,7 +197,9 @@ export function AppShell({
 
       {/* ------------------------------------------------ Контент */}
       <main className="px-4 pt-4 pb-24 lg:pl-[17.5rem] lg:pr-8 lg:pt-6 lg:pb-10">
-        <div className="mx-auto w-full max-w-3xl lg:max-w-6xl">{children}</div>
+        <div className="ob-fade-up mx-auto w-full max-w-3xl lg:max-w-6xl" key={pathname}>
+          {children}
+        </div>
       </main>
 
       {/* ------------------------------------------------ Телефон: нижняя навигация */}

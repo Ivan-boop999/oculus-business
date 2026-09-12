@@ -29,7 +29,9 @@ export function AuthPageShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-center py-8">
-          <div className="w-full max-w-xs">{children}</div>
+          <div className="w-full max-w-xs rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.045] to-white/[0.015] p-5 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.8)] backdrop-blur-sm">
+            {children}
+          </div>
         </div>
       </section>
 

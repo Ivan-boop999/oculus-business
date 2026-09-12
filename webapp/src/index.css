@@ -162,3 +162,98 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================ OCULUS polish */
+
+/* Основная кнопка — брендовый градиент со свечением */
+.dark button[data-slot="button"].bg-primary,
+.dark .bg-primary:not([data-slot="sidebar-menu-button"]) {
+  background-image: linear-gradient(135deg, #7b5cfa 0%, #5b5ff6 55%, #4338ca 100%);
+  box-shadow: 0 6px 24px -8px rgba(99, 102, 241, 0.55);
+  transition: box-shadow 0.2s ease, transform 0.15s ease, filter 0.2s ease;
+}
+
+.dark button[data-slot="button"].bg-primary:hover,
+.dark .bg-primary:hover:not([data-slot="sidebar-menu-button"]) {
+  filter: brightness(1.12);
+  box-shadow: 0 8px 32px -8px rgba(99, 102, 241, 0.75);
+}
+
+.dark button[data-slot="button"].bg-primary:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Поля ввода: тёмная подложка и индиго-фокус */
+.dark [data-slot="input"],
+.dark [data-slot="textarea"] {
+  background-color: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.11);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.dark [data-slot="input"]:focus,
+.dark [data-slot="textarea"]:focus {
+  border-color: rgba(129, 140, 248, 0.65);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Нативные селекты (месяц, этап) под тему */
+.dark select {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.11);
+  color: #e8ebf4;
+  border-radius: 0.625rem;
+}
+
+.dark select:focus {
+  border-color: rgba(129, 140, 248, 0.65);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  outline: none;
+}
+
+/* Индиго-фокус для клавиатурной навигации */
+.dark :focus-visible {
+  outline: 2px solid rgba(129, 140, 248, 0.7);
+  outline-offset: 2px;
+}
+
+/* Появление содержимого страницы */
+@keyframes ob-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ob-fade-up {
+  animation: ob-fade-up 0.28s ease-out both;
+}
+
+/* Шиты: градиентная нить сверху (у bottom-шитов) */
+.dark [data-slot="sheet-content"][data-side="bottom"] {
+  background:
+    linear-gradient(180deg, rgba(99, 102, 241, 0.22), rgba(99, 102, 241, 0) 3px),
+    #121926;
+  border-top: 1px solid rgba(129, 140, 248, 0.3);
+}
+
+.dark [data-slot="sheet-content"][data-side="right"] {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), rgba(99, 102, 241, 0) 3px), #121926;
+  border-left: 1px solid rgba(129, 140, 248, 0.25);
+}
+
+.dark [data-slot="sheet-overlay"] {
+  background: rgba(5, 7, 12, 0.7);
+  backdrop-filter: blur(3px);
+}
+
+/* Тосты */
+.dark [data-sonner-toast] {
+  background: #161d2c;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}

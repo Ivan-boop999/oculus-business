@@ -86,10 +86,11 @@ export function DevBoardPage() {
           >
             <header className="flex items-center justify-between gap-2 px-3 pt-3">
               <div className="flex min-w-0 items-center gap-2">
+                <span className="size-2 shrink-0 rounded-full bg-[#6366F1] shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
                 <h2 className="truncate text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{column.title}</h2>
               </div>
               <div className="flex items-center gap-1">
-                <Badge variant="secondary">{column.tasks.length}</Badge>
+                <Badge className="min-w-6 justify-center border-white/10 bg-white/5 text-[11px] text-[#C9D0E2] tabular-nums">{column.tasks.length}</Badge>
                 <button
                   aria-label={`Меню колонки ${column.title}`}
                   className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -133,6 +134,11 @@ export function DevBoardPage() {
                   </div>
                 </article>
               ))}
+              {column.tasks.length === 0 && (
+                <p className="rounded-xl border border-dashed border-white/8 px-3 py-3 text-center text-[11px] text-muted-foreground/70">
+                  Пусто
+                </p>
+              )}
               <Button onClick={() => setCreateColumnId(column.id)} size="sm" variant="ghost">
                 + Задача
               </Button>

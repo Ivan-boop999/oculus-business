@@ -73,12 +73,21 @@ export function CrmBoardPage() {
           >
             <header className="flex items-center justify-between gap-2 px-3 pt-3">
               <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className={`size-2 shrink-0 rounded-full ${
+                    stage.isWon
+                      ? 'bg-[#34D399] shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                      : stage.isLost
+                        ? 'bg-[#F43F5E]/70'
+                        : 'bg-[#6366F1] shadow-[0_0_8px_rgba(99,102,241,0.8)]'
+                  }`}
+                />
                 <h2 className="truncate text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{stage.title}</h2>
-                {stage.isWon && <Badge variant="secondary">выиграна</Badge>}
-                {stage.isLost && <Badge variant="outline">отказ</Badge>}
+                {stage.isWon && <Badge className="border-[#34D399]/25 bg-[#34D399]/10 text-[#34D399]">выиграна</Badge>}
+                {stage.isLost && <Badge className="border-[#F43F5E]/25 bg-[#F43F5E]/10 text-[#FB7185]">отказ</Badge>}
               </div>
               <div className="flex items-center gap-1">
-                <Badge variant="secondary">{stage.deals.length}</Badge>
+                <Badge className="min-w-6 justify-center border-white/10 bg-white/5 text-[11px] text-[#C9D0E2] tabular-nums">{stage.deals.length}</Badge>
                 <button
                   aria-label={`Меню этапа ${stage.title}`}
                   className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -137,6 +146,11 @@ export function CrmBoardPage() {
                   )}
                 </article>
               ))}
+              {stage.deals.length === 0 && (
+                <p className="rounded-xl border border-dashed border-white/8 px-3 py-3 text-center text-[11px] text-muted-foreground/70">
+                  Пусто — добавьте первую сделку
+                </p>
+              )}
               <Button
                 onClick={() => setCreateStageId(stage.id)}
                 size="sm"
