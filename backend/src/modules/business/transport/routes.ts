@@ -14,12 +14,16 @@ import {
   cashflowHistoryResponseSchema,
   createExpectedPaymentRequestSchema,
   createTxnRequestSchema,
+  companiesResponseSchema,
+  companyResponseSchema,
+  createCompanyRequestSchema,
   crmBoardResponseSchema,
   crmReportResponseSchema,
   dealHistoryResponseSchema,
   expectedPaymentResponseSchema,
   expectedPaymentsResponseSchema,
   mrrMovementResponseSchema,
+  notificationsResponseSchema,
   updateExpectedPaymentRequestSchema,
   crmStageResponseSchema,
   dashboardResponseSchema,
@@ -132,6 +136,27 @@ const deleteDealRoute = createRoute({
     204: { description: 'Deleted' },
     401: { content: errorContent, description: 'Authentication required' },
     404: { content: errorContent, description: 'Not found' },
+  },
+})
+
+const companiesRoute = createRoute({
+  method: 'get',
+  path: '/companies',
+  security: bearerSecurity,
+  responses: {
+    200: { content: json(companiesResponseSchema), description: 'Companies with stats' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const createCompanyRoute = createRoute({
+  method: 'post',
+  path: '/companies',
+  security: bearerSecurity,
+  request: { body: { content: json(createCompanyRequestSchema) } },
+  responses: {
+    201: { content: json(companyResponseSchema), description: 'Created company' },
+    ...standardErrors,
   },
 })
 
@@ -616,6 +641,26 @@ const expectedReceivedRoute = createRoute({
   },
 })
 
+const notificationsRoute = createRoute({
+  method: 'get',
+  path: '/notifications',
+  security: bearerSecurity,
+  responses: {
+    200: { content: json(notificationsResponseSchema), description: 'Team notifications' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const notificationsSeenRoute = createRoute({
+  method: 'post',
+  path: '/notifications/seen',
+  security: bearerSecurity,
+  responses: {
+    204: { description: 'Marked seen' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
 const dashboardRoute = createRoute({
   method: 'get',
   path: '/',
@@ -666,6 +711,13 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
   crm.openapi(deleteDealRoute, async (c) => {
     await executeBusiness(() => service.deleteDeal(c.req.valid('param').id))
     return c.body(null, 204)
+  })
+  crm.openapi(companiesRoute, async (c) => {
+    return c.json(await executeBusiness(() => service.companies()), 200)
+  })
+  crm.openapi(createCompanyRoute, async (c) => {
+    const company = await executeBusiness(() => service.createCompany(c.req.valid('json')))
+    return c.json({ company }, 201)
   })
   crm.openapi(dealCommentsRoute, async (c) => {
     return c.json({ comments: await executeBusiness(() => service.dealComments(c.req.valid('param').id)) }, 200)
@@ -857,6 +909,13 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     return c.json(await executeBusiness(() => service.forecast(months)), 200)
   })
 
+  dashboard.openapi(notificationsRoute, async (c) => {
+    return c.json(await executeBusiness(() => service.notifications(c.var.user.id)), 200)
+  })
+  dashboard.openapi(notificationsSeenRoute, async (c) => {
+    await executeBusiness(() => service.markNotificationsSeen(c.var.user.id))
+    return c.body(null, 204)
+  })
   dashboard.openapi(dashboardRoute, async (c) => {
     return c.json(await executeBusiness(() => service.dashboard()), 200)
   })

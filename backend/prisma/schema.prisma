@@ -24,6 +24,7 @@ model User {
   devTaskComments     DevTaskComment[]
   txns                Txn[]
   recurringItems      RecurringItem[]
+  lastSeenNotificationsAt DateTime? @map("last_seen_notifications_at")
 
   @@index([role], map: "users_role_idx")
   @@map("users")
@@ -53,6 +54,7 @@ model CrmStage {
 model Deal {
   id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   title           String
+  companyId       String?   @map("company_id") @db.Uuid
   contactName     String?   @map("contact_name")
   contactPhone    String?   @map("contact_phone")
   contactTelegram String?   @map("contact_telegram")
@@ -70,6 +72,7 @@ model Deal {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   stage           CrmStage      @relation(fields: [stageId], references: [id], map: "deals_stage_id_fkey")
+  company         Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull, map: "deals_company_id_fkey")
   createdBy       User          @relation(fields: [createdById], references: [id], map: "deals_created_by_id_fkey")
   comments        DealComment[]
   history         DealHistory[]
@@ -79,6 +82,19 @@ model Deal {
   @@index([stageId, position], map: "deals_stage_position_idx")
   @@index([nextActionAt], map: "deals_next_action_at_idx")
   @@map("deals")
+}
+
+/// Контрагент: компания клиента. Название сделки остаётся заголовком карточки,
+/// companyId связывает несколько сделок одного клиента.
+model Company {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name      String   @unique
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deals     Deal[]
+
+  @@map("companies")
 }
 
 /// История перемещений по этапам — сырьё для отчёта воронки и движения MRR.
@@ -235,9 +251,10 @@ model MonthGoal {
 /// Ожидаемое поступление (дебиторка): выставленный счёт. В баланс не входит,
 /// в прогнозе учитывается с коэффициентом probability/100.
 model ExpectedPayment {
-  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  title       String
-  amount      Int
+  id            String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  title         String
+  invoiceNumber String?  @map("invoice_number")
+  amount        Int
   dueDate     DateTime @map("due_date") @db.Date
   probability Int      @default(80)
   dealId      String?  @map("deal_id") @db.Uuid

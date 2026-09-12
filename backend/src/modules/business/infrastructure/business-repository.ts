@@ -32,6 +32,8 @@ import type {
   UpdateExpectedPaymentRequest,
   Sprint,
   CreateSprintRequest,
+  Company,
+  CreateCompanyRequest,
 } from '@oculus-business/contracts'
 
 import type { DbClient } from '../../../db'
@@ -40,6 +42,7 @@ import type { BusinessRepository } from '../application/ports'
 
 type DealRow = Awaited<ReturnType<DbClient['deal']['findUniqueOrThrow']>> & {
   createdBy: { displayName: string | null }
+  company: { name: string } | null
 }
 type DevTaskRow = Awaited<ReturnType<DbClient['devTask']['findUniqueOrThrow']>>
 type TxnRow = Awaited<ReturnType<DbClient['txn']['findUniqueOrThrow']>>
@@ -71,6 +74,8 @@ function toDealDto(row: DealRow & { _count: { comments: number } }): Deal {
     nextActionAt: toDateOnly(row.nextActionAt),
     nextAction: row.nextAction,
     lostReason: row.lostReason,
+    companyId: row.companyId,
+    companyName: row.company?.name ?? null,
     lastStageChangeAt: row.lastStageChangeAt ? row.lastStageChangeAt.toISOString() : null,
     createdById: row.createdById,
     createdByName: row.createdBy?.displayName ?? null,
@@ -182,6 +187,7 @@ async function guarded<T>(operation: () => Promise<T>): Promise<T> {
 const dealInclude = {
   _count: { select: { comments: true } },
   createdBy: { select: { displayName: true } },
+  company: { select: { name: true } },
 } as const
 const devTaskInclude = {
   _count: { select: { comments: true } },
@@ -228,6 +234,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
             note: input.note ?? null,
             nextActionAt: input.nextActionAt ? fromDateOnly(input.nextActionAt) : null,
             nextAction: input.nextAction ?? null,
+            companyId: input.companyId ?? null,
             stageId,
             position: (last?.position ?? -1) + 1,
             createdById,
@@ -255,6 +262,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         }
         if ('nextAction' in input) data.nextAction = input.nextAction ?? null
         if ('lostReason' in input) data.lostReason = input.lostReason ?? null
+        if ('companyId' in input) data.companyId = input.companyId ?? null
         if ('stageId' in input && input.stageId !== undefined) data.stageId = input.stageId
         const row = await db.deal.update({ where: { id }, data, include: dealInclude })
         return toDealDto(row)
@@ -678,6 +686,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         dueDate: toDateOnly(row.dueDate) ?? '',
         probability: row.probability,
         dealId: row.dealId,
+        invoiceNumber: row.invoiceNumber,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       }))
@@ -688,6 +697,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         const row = await db.expectedPayment.create({
           data: {
             title: input.title,
+            invoiceNumber: input.invoiceNumber ?? null,
             amount: input.amount,
             dueDate: fromDateOnly(input.dueDate),
             probability: input.probability,
@@ -702,6 +712,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
       return guarded(async () => {
         const data: Record<string, unknown> = {}
         if ('title' in input) data.title = input.title
+        if ('invoiceNumber' in input) data.invoiceNumber = input.invoiceNumber ?? null
         if ('amount' in input) data.amount = input.amount
         if ('dueDate' in input && input.dueDate !== undefined) data.dueDate = fromDateOnly(input.dueDate)
         if ('probability' in input && input.probability !== undefined) data.probability = input.probability
@@ -737,6 +748,68 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
       await guarded(async () => {
         await db.sprint.update({ where: { id }, data: { isActive: false } })
       })
+    },
+
+    async listCompanies() {
+      const rows = await db.company.findMany({ orderBy: { name: 'asc' } })
+      const stages = await db.crmStage.findMany({
+        include: { deals: { select: { companyId: true, monthlyAmount: true } } },
+      })
+      const wonStageIds = new Set(stages.filter((stage) => stage.isWon).map((stage) => stage.id))
+      return rows.map((row) => {
+        let dealsCount = 0
+        let activeMrr = 0
+        for (const stage of stages) {
+          for (const deal of stage.deals) {
+            if (deal.companyId !== row.id) continue
+            dealsCount += 1
+            if (wonStageIds.has(stage.id)) activeMrr += deal.monthlyAmount
+          }
+        }
+        return { id: row.id, name: row.name, note: row.note, dealsCount, activeMrr }
+      })
+    },
+
+    async createCompany(input) {
+      const existing = await db.company.findUnique({ where: { name: input.name } })
+      if (existing) {
+        throw new BusinessFailure('conflict', 'Контрагент с таким названием уже есть')
+      }
+      const row = await db.company.create({
+        data: { name: input.name, note: input.note ?? null },
+      })
+      return { id: row.id, name: row.name, note: row.note, dealsCount: 0, activeMrr: 0 }
+    },
+
+    async listRecentComments(since, limit) {
+      const rows = await db.dealComment.findMany({
+        where: { createdAt: { gt: since } },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        include: {
+          deal: { select: { id: true, title: true } },
+          author: { select: { displayName: true } },
+        },
+      })
+      return rows.map((row) => ({
+        body: row.body,
+        createdAt: row.createdAt.toISOString(),
+        dealId: row.deal.id,
+        dealTitle: row.deal.title,
+        authorName: row.author.displayName,
+      }))
+    },
+
+    async markNotificationsSeen(userId, at) {
+      await db.user.update({ where: { id: userId }, data: { lastSeenNotificationsAt: at } })
+    },
+
+    async getUserLastSeen(userId) {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { lastSeenNotificationsAt: true },
+      })
+      return user?.lastSeenNotificationsAt ?? null
     },
 
     async getGoal(month) {
@@ -778,6 +851,7 @@ function mapExpected(row: Awaited<ReturnType<DbClient['expectedPayment']['findUn
   return {
     id: row.id,
     title: row.title,
+    invoiceNumber: row.invoiceNumber,
     amount: row.amount,
     dueDate: toDateOnly(row.dueDate) ?? '',
     probability: row.probability,

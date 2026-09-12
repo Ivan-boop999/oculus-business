@@ -29,6 +29,9 @@ import type {
   UpdateExpectedPaymentRequest,
   Sprint,
   CreateSprintRequest,
+  Company,
+  CreateCompanyRequest,
+  Notifications,
   RecurringItem,
   Txn,
   CreateTxnRequest,
@@ -294,6 +297,7 @@ export class BusinessService {
 
   async summary(month?: string): Promise<FinanceSummary> {
     const resolvedMonth = month ?? currentMonth(this.clock.now())
+    const prevMonth = addMonthsLocal(resolvedMonth, -1)
     const [txns, recurring, stages] = await Promise.all([
       this.repository.listTxns(),
       this.repository.listRecurring(),
@@ -305,6 +309,14 @@ export class BusinessService {
     const expenseByCategoryMap = new Map<string, number>()
     let income = 0
     let expense = 0
+    let prevMonthIncome = 0
+    let prevMonthExpense = 0
+    for (const txn of txns) {
+      if (txn.occurredOn.slice(0, 7) === prevMonth) {
+        if (txn.kind === 'income') prevMonthIncome += txn.amount
+        else prevMonthExpense += txn.amount
+      }
+    }
     for (const txn of monthTxns) {
       const target = txn.kind === 'income' ? incomeByCategoryMap : expenseByCategoryMap
       target.set(txn.category, (target.get(txn.category) ?? 0) + txn.amount)
@@ -356,6 +368,8 @@ export class BusinessService {
       activeRecurringExpense,
       balance: balanceTo(settings, txns, today),
       mrrDelta: await this.mrrDeltaOfMonth(resolvedMonth, stages),
+      prevMonthIncome,
+      prevMonthExpense,
     }
   }
 
@@ -585,6 +599,65 @@ export class BusinessService {
 
   async finishSprint(id: string): Promise<void> {
     await this.repository.finishSprint(id)
+  }
+
+  // ------------------------------------------------ Контрагенты
+
+  async companies(): Promise<{ items: Company[] }> {
+    const items = await this.repository.listCompanies()
+    return { items }
+  }
+
+  async createCompany(input: CreateCompanyRequest): Promise<Company> {
+    return this.repository.createCompany(input)
+  }
+
+  // ------------------------------------------------ Уведомления
+
+  /// Просроченные действия + комментарии новее последнего «прочитано» пользователя.
+  async notifications(userId: string): Promise<Notifications> {
+    const now = this.clock.now()
+    const today = todayKey(now)
+    const lastSeen = await this.repository.getUserLastSeen(userId)
+    const since = lastSeen ?? new Date(now.getTime() - 7 * 86_400_000)
+
+    const [stages, comments] = await Promise.all([
+      this.repository.listCrmBoard(),
+      this.repository.listRecentComments(since, 20),
+    ])
+
+    const overdue: Notifications['items'] = []
+    for (const stage of stages) {
+      if (stage.isLost) continue
+      for (const deal of stage.deals) {
+        if (deal.nextActionAt !== null && deal.nextActionAt < today) {
+          overdue.push({
+            kind: 'overdue',
+            title: deal.title,
+            subtitle: (deal.nextAction ?? 'Просроченное действие') + ' · было до ' + deal.nextActionAt,
+            at: deal.nextActionAt + 'T00:00:00.000Z',
+          })
+        }
+      }
+    }
+    overdue.sort((a, b) => a.at.localeCompare(b.at))
+
+    const commentItems: Notifications['items'] = comments.map((comment) => ({
+      kind: 'comment',
+      title: comment.dealTitle,
+      subtitle: (comment.authorName ?? 'Коллега') + ': ' + comment.body.slice(0, 80),
+      at: comment.createdAt,
+    }))
+
+    return {
+      overdueCount: overdue.length,
+      newCommentsCount: commentItems.length,
+      items: [...overdue, ...commentItems].slice(0, 20),
+    }
+  }
+
+  async markNotificationsSeen(userId: string): Promise<void> {
+    await this.repository.markNotificationsSeen(userId, this.clock.now())
   }
 
   // ---------------------------------------------------------------- Дашборд

@@ -18,6 +18,7 @@ import type { PropsWithChildren } from 'react'
 
 import { BrandMark } from '@/components/BrandMark'
 import { GlobalSearch } from '@/components/GlobalSearch'
+import { NotificationsBell } from '@/components/NotificationsBell'
 
 /// Адаптивная оболочка приложения в фирменном стиле OCULUS.
 /// ПК (lg+): боковое меню с раскрывающимися группами (клик по «Финансам»
@@ -159,6 +160,10 @@ export function AppShell({
             <span className="grid size-4 place-items-center text-xs">⏻</span>
             Выйти
           </button>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[11px] text-muted-foreground">Уведомления</span>
+            <NotificationsBell />
+          </div>
           <div className="mt-2 flex items-center gap-2.5 rounded-lg border border-white/6 bg-white/[0.03] px-3 py-2.5">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#7B5CFA] to-[#4338CA] text-xs font-bold text-white shadow-[0_0_16px_rgba(99,102,241,0.35)]">
               {initials(user)}
@@ -184,6 +189,7 @@ export function AppShell({
               Окулус Бизнес
             </span>
           </div>
+          <NotificationsBell />
           <Link
             className="flex items-center gap-2 rounded-full border border-white/6 bg-white/[0.04] py-1 pl-1 pr-3 text-sm text-muted-foreground transition-colors hover:text-white"
             to="/app/profile"

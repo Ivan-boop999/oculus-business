@@ -95,12 +95,22 @@ export function FinancePage() {
         <Tile
           label="Доход"
           loading={summary.isPending}
+          sub={
+            summary.data
+              ? deltaLabel(summary.data.income, summary.data.prevMonthIncome)
+              : undefined
+          }
           tone="text-[#34D399]"
           value={summary.data ? formatMoney(summary.data.income) : '—'}
         />
         <Tile
           label="Расход"
           loading={summary.isPending}
+          sub={
+            summary.data
+              ? deltaLabel(summary.data.expense, summary.data.prevMonthExpense)
+              : undefined
+          }
           tone="text-[#FB7185]"
           value={summary.data ? formatMoney(summary.data.expense) : '—'}
         />
@@ -256,11 +266,13 @@ export function FinancePage() {
 function Tile({
   label,
   loading,
+  sub,
   tone,
   value,
 }: {
   label: string
   loading: boolean
+  sub?: string
   tone: string
   value: string
 }) {
@@ -276,6 +288,15 @@ function Tile({
       >
         {loading ? '…' : value}
       </p>
+      {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
     </div>
   )
+}
+
+/// «+23% к прошлому месяцу» — или прочерк, если прошлого месяца ещё не было.
+function deltaLabel(current: number, prev: number): string {
+  if (prev === 0) return current > 0 ? 'первый месяц с операциями' : '—'
+  const pct = Math.round(((current - prev) / prev) * 100)
+  if (pct === 0) return 'как в прошлом месяце'
+  return `${pct > 0 ? '+' : ''}${pct}% к прошлому месяцу`
 }

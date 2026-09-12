@@ -29,6 +29,8 @@ import type {
   DealHistoryEntry,
   Sprint,
   CreateSprintRequest,
+  Company,
+  CreateCompanyRequest,
 } from '@oculus-business/contracts'
 
 /// Репозиторий бизнес-модуля: единственная точка доступа к хранилищу.
@@ -95,6 +97,13 @@ export type BusinessRepository = {
   listSprints(): Promise<Sprint[]>
   createSprint(input: CreateSprintRequest): Promise<Sprint>
   finishSprint(id: string): Promise<void>
+  listCompanies(): Promise<Company[]>
+  createCompany(input: CreateCompanyRequest): Promise<Company>
+  listRecentComments(since: Date, limit: number): Promise<
+    Array<{ body: string; createdAt: string; dealTitle: string; dealId: string; authorName: string | null }>
+  >
+  markNotificationsSeen(userId: string, at: Date): Promise<void>
+  getUserLastSeen(userId: string): Promise<Date | null>
   saveGoal(goal: MonthGoal): Promise<MonthGoal>
 }
 

@@ -1,7 +1,10 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { cashflowHistoryResponseSchema } from '@oculus-business/contracts'
+import { useAuth } from '@/features/auth'
 import { formatMoney, monthLabel, RUNWAY_MODE_LABELS } from '@/platform/format'
 
 import { useForecastQuery } from './queries'
@@ -135,7 +138,104 @@ export function ForecastPage() {
           <Link to="/app/finance">← Операции</Link>
         </Button>
       </div>
+
+      <OwnerReport />
     </div>
+  )
+}
+
+/// «Отчёт владельца»: выручка/расход/прибыль/маржа по месяцам за год + итог.
+function OwnerReport() {
+  const { transport } = useAuth()
+  const history = useQuery({
+    queryKey: ['finance', 'cashflow', 12],
+    queryFn: ({ signal }) =>
+      transport.request('/api/finance/history?months=12', cashflowHistoryResponseSchema, {
+        signal,
+      }),
+  })
+  const months = history.data?.months ?? []
+  const totals = months.reduce(
+    (acc, month) => ({
+      income: acc.income + month.income,
+      expense: acc.expense + month.expense,
+    }),
+    { income: 0, expense: 0 },
+  )
+  const totalProfit = totals.income - totals.expense
+  const avgMargin =
+    totals.income > 0 ? Math.round((totalProfit / totals.income) * 100) : null
+
+  return (
+    <section className="rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.04] to-white/[0.01] p-4">
+      <h2 className="mb-3 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+        Отчёт владельца · год к дате
+      </h2>
+      {months.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Загружаем…</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-max text-sm">
+            <thead className="text-left text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+              <tr>
+                <th className="px-2 py-2 font-semibold">Месяц</th>
+                <th className="px-2 py-2 text-right font-semibold">Выручка</th>
+                <th className="px-2 py-2 text-right font-semibold">Расход</th>
+                <th className="px-2 py-2 text-right font-semibold">Прибыль</th>
+                <th className="px-2 py-2 text-right font-semibold">Маржа</th>
+              </tr>
+            </thead>
+            <tbody>
+              {months.map((month) => {
+                const profit = month.net
+                const margin = month.income > 0 ? Math.round((profit / month.income) * 100) : null
+                return (
+                  <tr className="border-t border-white/5" key={month.month}>
+                    <td className="px-2 py-2 text-white capitalize">{monthLabel(month.month)}</td>
+                    <td className="px-2 py-2 text-right text-[#34D399] tabular-nums">
+                      {formatMoney(month.income)}
+                    </td>
+                    <td className="px-2 py-2 text-right text-[#FB7185] tabular-nums">
+                      {formatMoney(month.expense)}
+                    </td>
+                    <td
+                      className={`px-2 py-2 text-right font-semibold tabular-nums ${
+                        profit >= 0 ? 'text-white' : 'text-[#FB7185]'
+                      }`}
+                    >
+                      {profit >= 0 ? '+' : '−'}
+                      {formatMoney(Math.abs(profit))}
+                    </td>
+                    <td className="px-2 py-2 text-right text-muted-foreground tabular-nums">
+                      {margin === null ? '—' : `${margin}%`}
+                    </td>
+                  </tr>
+                )
+              })}
+              <tr className="border-t-2 border-white/15 font-semibold">
+                <td className="px-2 py-2 text-white">Итого 12 мес</td>
+                <td className="px-2 py-2 text-right text-[#34D399] tabular-nums">
+                  {formatMoney(totals.income)}
+                </td>
+                <td className="px-2 py-2 text-right text-[#FB7185] tabular-nums">
+                  {formatMoney(totals.expense)}
+                </td>
+                <td className="px-2 py-2 text-right text-white tabular-nums">
+                  {totalProfit >= 0 ? '+' : '−'}
+                  {formatMoney(Math.abs(totalProfit))}
+                </td>
+                <td className="px-2 py-2 text-right text-[#A5B4FC] tabular-nums">
+                  {avgMargin === null ? '—' : `${avgMargin}%`}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="mt-2 text-[10px] text-muted-foreground">
+        Кассовый метод (по факту движения денег). Маржа = прибыль ÷ выручка месяца.
+      </p>
+    </section>
   )
 }
 

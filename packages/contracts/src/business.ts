@@ -46,6 +46,8 @@ export const dealSchema = z
     nextActionAt: dateOnlySchema.nullable(),
     nextAction: z.string().nullable(),
     lostReason: z.string().nullable(),
+    companyId: z.string().uuid().nullable(),
+    companyName: z.string().nullable(),
     lastStageChangeAt: z.string().datetime().nullable(),
     createdById: z.string().uuid(),
     createdByName: z.string().nullable(),
@@ -85,6 +87,7 @@ export const createDealRequestSchema = z
     nextActionAt: dateOnlySchema.nullable().optional(),
     nextAction: nullableTrimmed(400).optional(),
     lostReason: nullableTrimmed(400).optional(),
+    companyId: z.string().uuid().nullable().optional(),
     stageId: z.string().uuid().optional(),
   })
   .strict()
@@ -364,6 +367,8 @@ export const financeSummaryResponseSchema = z
     income: z.number().int(),
     expense: z.number().int(),
     net: z.number().int(),
+    prevMonthIncome: z.number().int(),
+    prevMonthExpense: z.number().int(),
     incomeByCategory: z.array(categoryTotalSchema),
     expenseByCategory: z.array(categoryTotalSchema),
     mrr: z.number().int(),
@@ -528,6 +533,7 @@ export const expectedPaymentSchema = z
   .object({
     id: z.string().uuid(),
     title: z.string(),
+    invoiceNumber: z.string().nullable(),
     amount: z.number().int(),
     dueDate: dateOnlySchema,
     probability: z.number().int().min(0).max(100),
@@ -540,6 +546,7 @@ export const expectedPaymentSchema = z
 export const createExpectedPaymentRequestSchema = z
   .object({
     title: z.string().trim().min(1).max(160),
+    invoiceNumber: nullableTrimmed(60).optional(),
     amount: z.number().int().min(1).max(1_000_000_000),
     dueDate: dateOnlySchema,
     probability: z.number().int().min(0).max(100).default(80),
@@ -553,6 +560,50 @@ export const updateExpectedPaymentRequestSchema =
 export const expectedPaymentResponseSchema = z.object({ payment: expectedPaymentSchema }).strict()
 export const expectedPaymentsResponseSchema = z
   .object({ items: z.array(expectedPaymentSchema) })
+  .strict()
+
+// =============================================================================
+// Цикл 2: контрагенты, уведомления
+// =============================================================================
+
+export const companySchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+    note: z.string().nullable(),
+    dealsCount: z.number().int(),
+    activeMrr: z.number().int(),
+  })
+  .strict()
+
+export const companiesResponseSchema = z
+  .object({ items: z.array(companySchema) })
+  .strict()
+
+export const createCompanyRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    note: nullableTrimmed(1000).optional(),
+  })
+  .strict()
+
+export const companyResponseSchema = z.object({ company: companySchema }).strict()
+
+export const notificationItemSchema = z
+  .object({
+    kind: z.enum(['overdue', 'comment']),
+    title: z.string(),
+    subtitle: z.string(),
+    at: z.string().datetime(),
+  })
+  .strict()
+
+export const notificationsResponseSchema = z
+  .object({
+    overdueCount: z.number().int(),
+    newCommentsCount: z.number().int(),
+    items: z.array(notificationItemSchema),
+  })
   .strict()
 
 // =============================================================================
@@ -593,6 +644,9 @@ export type MrrMovement = z.infer<typeof mrrMovementResponseSchema>
 export type CashflowHistory = z.infer<typeof cashflowHistoryResponseSchema>
 export type ExpectedPayment = z.infer<typeof expectedPaymentSchema>
 export type Sprint = z.infer<typeof sprintSchema>
+export type Company = z.infer<typeof companySchema>
+export type CreateCompanyRequest = z.infer<typeof createCompanyRequestSchema>
+export type Notifications = z.infer<typeof notificationsResponseSchema>
 export type CreateSprintRequest = z.infer<typeof createSprintRequestSchema>
 export type CreateExpectedPaymentRequest = z.infer<typeof createExpectedPaymentRequestSchema>
 export type UpdateExpectedPaymentRequest = z.infer<typeof updateExpectedPaymentRequestSchema>
