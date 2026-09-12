@@ -38,6 +38,14 @@ import {
 } from '../domain/forecast'
 import type { BusinessRepository, Clock } from './ports'
 
+function addMonthsLocal(month: string, count: number): string {
+  const [year, mon] = month.split('-').map(Number)
+  const total = year * 12 + (mon - 1) + count
+  const nextYear = Math.floor(total / 12)
+  const nextMon = (total % 12) + 1
+  return `${nextYear}-${String(nextMon).padStart(2, '0')}`
+}
+
 type BusinessServiceOptions = {
   clock: Clock
   repository: BusinessRepository
@@ -233,6 +241,21 @@ export class BusinessService {
     return this.repository.saveSettings(input)
   }
 
+  /// Прирост MRR месяца: сумма monthlyAmount сделок, вошедших в этап-победитель
+  /// в этом месяце (по DealHistory; названия won-этапов берём из текущей доски).
+  async mrrDeltaOfMonth(month: string, stages: CrmBoardResponse['stages']): Promise<number> {
+    const wonTitles = new Set(stages.filter((stage) => stage.isWon).map((stage) => stage.title))
+    if (wonTitles.size === 0) return 0
+    const nextMonth = addMonthsLocal(month, 1)
+    const history = await this.repository.listHistoryInRange(
+      month + '-01',
+      nextMonth + '-01',
+    )
+    return history
+      .filter((entry) => wonTitles.has(entry.toStage))
+      .reduce((sum, entry) => sum + entry.monthlyAmount, 0)
+  }
+
   async summary(month?: string): Promise<FinanceSummary> {
     const resolvedMonth = month ?? currentMonth(this.clock.now())
     const [txns, recurring, stages] = await Promise.all([
@@ -296,6 +319,7 @@ export class BusinessService {
       activeRecurringIncome,
       activeRecurringExpense,
       balance: balanceTo(settings, txns, today),
+      mrrDelta: await this.mrrDeltaOfMonth(resolvedMonth, stages),
     }
   }
 

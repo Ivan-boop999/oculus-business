@@ -138,7 +138,11 @@ export function FinancePage() {
         </Button>
       </div>
 
-      <MonthGoalCard month={month} monthIncome={summary.data?.income ?? 0} mrrDelta={0} />
+      <MonthGoalCard
+        mrrDelta={summary.data?.mrrDelta ?? 0}
+        month={month}
+        monthIncome={summary.data?.income ?? 0}
+      />
       </div>
 
       <section className="grid gap-2">

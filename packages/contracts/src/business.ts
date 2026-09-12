@@ -336,6 +336,8 @@ export const financeSummaryResponseSchema = z
     incomeByCategory: z.array(categoryTotalSchema),
     expenseByCategory: z.array(categoryTotalSchema),
     mrr: z.number().int(),
+    /// Прирост MRR за месяц: сделки, вошедшие в этап-победитель в этом месяце.
+    mrrDelta: z.number().int(),
     pipelineMonthly: z.number().int(),
     pipelineOneTime: z.number().int(),
     activeRecurringIncome: z.number().int(),

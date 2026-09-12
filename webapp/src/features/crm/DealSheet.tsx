@@ -90,6 +90,8 @@ function payloadFromForm(form: DealFormState) {
 
 type DealSheetProps = {
   deal: Deal | null
+  /// Этап отказа, в который просили перенести сделку извне (drag&drop) — сразу спрашиваем причину.
+  lostPromptStageId?: string | null
   onCreateStageId: string | null
   onClose: () => void
   open: boolean
@@ -98,13 +100,21 @@ type DealSheetProps = {
 
 /// Карточка сделки: просмотр/редактирование полей, перемещение по этапам,
 /// удаление и чат-комментарии в духе YouGile.
-export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: DealSheetProps) {
+export function DealSheet({
+  deal,
+  lostPromptStageId = null,
+  onCreateStageId,
+  onClose,
+  open,
+  stages,
+}: DealSheetProps) {
   const isCreate = deal === null
   const [form, setForm] = useState<DealFormState>(() => formFromDeal(deal))
   const [error, setError] = useState<string | null>(null)
   const isDesktop = useIsDesktop()
   const [pendingLostStage, setPendingLostStage] = useState<string | null>(null)
   const [lostReasonChoice, setLostReasonChoice] = useState('')
+  const [lostReasonOther, setLostReasonOther] = useState('')
   const [comment, setComment] = useState('')
 
   useEffect(() => {
@@ -112,10 +122,11 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
       setForm(formFromDeal(deal))
       setError(null)
       setComment('')
-      setPendingLostStage(null)
+      setPendingLostStage(deal !== null && !deal.lostReason ? lostPromptStageId : null)
       setLostReasonChoice('')
+      setLostReasonOther('')
     }
-  }, [open, deal])
+  }, [open, deal, lostPromptStageId])
 
   const createDeal = useCreateDealMutation()
   const updateDeal = useUpdateDealMutation()
@@ -302,9 +313,21 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
                     </option>
                   ))}
                 </select>
+                {lostReasonChoice === 'Другое' && (
+                  <Input
+                    onChange={(event) => setLostReasonOther(event.target.value)}
+                    placeholder="Свой вариант причины"
+                    value={lostReasonOther}
+                  />
+                )}
                 <div className="flex gap-2">
                   <Button
-                    disabled={!lostReasonChoice || moveDeal.isPending || updateDeal.isPending}
+                    disabled={
+                      !lostReasonChoice ||
+                      (lostReasonChoice === 'Другое' && !lostReasonOther.trim()) ||
+                      moveDeal.isPending ||
+                      updateDeal.isPending
+                    }
                     onClick={() => {
                       const target = stages.find((item) => item.id === pendingLostStage)
                       moveDeal.mutate(
@@ -315,7 +338,15 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
                         },
                         {
                           onSuccess: () => {
-                            updateDeal.mutate({ id: deal.id, input: { lostReason: lostReasonChoice } })
+                            updateDeal.mutate({
+                              id: deal.id,
+                              input: {
+                                lostReason:
+                                  lostReasonChoice === 'Другое'
+                                    ? `Другое: ${lostReasonOther.trim()}`
+                                    : lostReasonChoice,
+                              },
+                            })
                             setPendingLostStage(null)
                           },
                         },

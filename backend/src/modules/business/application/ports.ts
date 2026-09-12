@@ -73,6 +73,12 @@ export type BusinessRepository = {
   deleteRecurring(id: string): Promise<void>
   getSettings(): Promise<BizSettings>
   saveSettings(settings: BizSettings): Promise<BizSettings>
+  listHistoryInRange(from: string, to: string): Promise<Array<{
+    toStage: string
+    fromStage: string | null
+    movedAt: string
+    monthlyAmount: number
+  }>>
   getGoal(month: string): Promise<MonthGoal>
   saveGoal(goal: MonthGoal): Promise<MonthGoal>
 }

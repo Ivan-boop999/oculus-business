@@ -29,6 +29,7 @@ export function CrmBoardPage() {
   const [openMenuStageId, setOpenMenuStageId] = useState<string | null>(null)
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null)
   const [mineOnly, setMineOnly] = useState(false)
+  const [lostPromptStageId, setLostPromptStageId] = useState<string | null>(null)
   const { user } = useAuth()
 
   if (board.isPending) {
@@ -59,6 +60,15 @@ export function CrmBoardPage() {
     const dealId = event.dataTransfer.getData('text/plain')
     if (!dealId) return
     if (stage.deals.some((deal) => deal.id === dealId)) return
+    if (stage.isLost) {
+      // Отказ требует причину: открываем карточку с вопросом, без переноса.
+      const deal = allStages.flatMap((item) => item.deals).find((item) => item.id === dealId)
+      if (deal && !deal.lostReason) {
+        setSelectedDeal(deal)
+        setLostPromptStageId(stage.id)
+        return
+      }
+    }
     moveDeal.mutate({ id: dealId, stageId: stage.id, position: stage.deals.length })
   }
 
@@ -204,10 +214,12 @@ export function CrmBoardPage() {
 
       <DealSheet
         deal={selectedDeal}
+        lostPromptStageId={lostPromptStageId}
         onCreateStageId={createStageId}
         onClose={() => {
           setSelectedDeal(null)
           setCreateStageId(null)
+          setLostPromptStageId(null)
         }}
         open={selectedDeal !== null || createStageId !== null}
         stages={stages}

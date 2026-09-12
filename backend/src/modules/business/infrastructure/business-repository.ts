@@ -608,6 +608,20 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
       } satisfies BizSettings
     },
 
+    async listHistoryInRange(from, to) {
+      const rows = await db.dealHistory.findMany({
+        where: { movedAt: { gte: fromDateOnly(from), lt: fromDateOnly(to) } },
+        include: { deal: { select: { monthlyAmount: true } } },
+        orderBy: { movedAt: 'asc' },
+      })
+      return rows.map((row) => ({
+        toStage: row.toStage,
+        fromStage: row.fromStage,
+        movedAt: row.movedAt.toISOString(),
+        monthlyAmount: row.deal.monthlyAmount,
+      }))
+    },
+
     async getGoal(month) {
       const row = await db.monthGoal.findUnique({ where: { month } })
       return row ?? { month, mrrGoal: 0, incomeGoal: 0 }
