@@ -64,16 +64,34 @@ model Deal {
   note            String?
   nextActionAt    DateTime? @map("next_action_at") @db.Date
   nextAction      String?   @map("next_action")
+  lostReason      String?   @map("lost_reason")
+  lastStageChangeAt DateTime? @map("last_stage_change_at")
   createdById     String    @map("created_by_id") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   stage           CrmStage      @relation(fields: [stageId], references: [id], map: "deals_stage_id_fkey")
   createdBy       User          @relation(fields: [createdById], references: [id], map: "deals_created_by_id_fkey")
   comments        DealComment[]
+  history         DealHistory[]
+  devTasks        DevTask[]
+  expectedPayments ExpectedPayment[]
 
   @@index([stageId, position], map: "deals_stage_position_idx")
   @@index([nextActionAt], map: "deals_next_action_at_idx")
   @@map("deals")
+}
+
+/// История перемещений по этапам — сырьё для отчёта воронки и движения MRR.
+model DealHistory {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  dealId    String   @map("deal_id") @db.Uuid
+  fromStage String?  @map("from_stage")
+  toStage   String   @map("to_stage")
+  movedAt   DateTime @default(now()) @map("moved_at")
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade, map: "deal_history_deal_id_fkey")
+
+  @@index([movedAt], map: "deal_history_moved_at_idx")
+  @@map("deal_history")
 }
 
 model DealComment {
@@ -112,15 +130,34 @@ model DevTask {
   columnId    String           @map("column_id") @db.Uuid
   position    Int
   dueDate     DateTime?        @map("due_date") @db.Date
+  fixVersion  String?          @map("fix_version")
+  dealId      String?          @map("deal_id") @db.Uuid
+  sprintId    String?          @map("sprint_id") @db.Uuid
   createdById String           @map("created_by_id") @db.Uuid
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
   column      DevColumn        @relation(fields: [columnId], references: [id], map: "dev_tasks_column_id_fkey")
   createdBy   User             @relation(fields: [createdById], references: [id], map: "dev_tasks_created_by_id_fkey")
+  deal        Deal?            @relation(fields: [dealId], references: [id], map: "dev_tasks_deal_id_fkey")
+  sprint      Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull, map: "dev_tasks_sprint_id_fkey")
   comments    DevTaskComment[]
 
   @@index([columnId, position], map: "dev_tasks_column_position_idx")
   @@map("dev_tasks")
+}
+
+/// Спринт (цикл) разработки: период фокуса команды.
+model Sprint {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name      String
+  startsOn  DateTime  @map("starts_on") @db.Date
+  endsOn    DateTime  @map("ends_on") @db.Date
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  tasks     DevTask[]
+
+  @@map("sprints")
 }
 
 model DevTaskComment {
@@ -183,6 +220,33 @@ model BizSettings {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("biz_settings")
+}
+
+/// Цель месяца: план по приросту MRR и по разовой выручке. Одна строка на месяц.
+model MonthGoal {
+  month      String   @id
+  mrrGoal    Int      @default(0) @map("mrr_goal")
+  incomeGoal Int      @default(0) @map("income_goal")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("month_goals")
+}
+
+/// Ожидаемое поступление (дебиторка): выставленный счёт. В баланс не входит,
+/// в прогнозе учитывается с коэффициентом probability/100.
+model ExpectedPayment {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  title       String
+  amount      Int
+  dueDate     DateTime @map("due_date") @db.Date
+  probability Int      @default(80)
+  dealId      String?  @map("deal_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deal        Deal?    @relation(fields: [dealId], references: [id], map: "expected_payments_deal_id_fkey")
+
+  @@index([dueDate], map: "expected_payments_due_date_idx")
+  @@map("expected_payments")
 }
 
 /// One row per avatar upload attempt. The object itself lives in private storage; this table

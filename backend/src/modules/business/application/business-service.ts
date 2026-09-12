@@ -19,6 +19,7 @@ import type {
   UpdateDevColumnRequest,
   FinanceSummary,
   ForecastResponse,
+  MonthGoal,
   RecurringItem,
   Txn,
   CreateTxnRequest,
@@ -220,6 +221,14 @@ export class BusinessService {
     return this.repository.getSettings()
   }
 
+  async goal(month: string): Promise<MonthGoal> {
+    return this.repository.getGoal(month)
+  }
+
+  async saveGoal(input: MonthGoal): Promise<MonthGoal> {
+    return this.repository.saveGoal(input)
+  }
+
   async saveSettings(input: BizSettings): Promise<BizSettings> {
     return this.repository.saveSettings(input)
   }
@@ -329,6 +338,7 @@ export class BusinessService {
       else if (!stage.isLost) activeDeals += stage.deals.length
     }
 
+    const today = todayKey(now)
     const nextActions = stages
       .filter((stage) => !stage.isLost)
       .flatMap((stage) =>
@@ -340,6 +350,7 @@ export class BusinessService {
             stageTitle: stage.title,
             nextAction: deal.nextAction,
             nextActionAt: deal.nextActionAt,
+            overdue: (deal.nextActionAt ?? today) < today,
           })),
       )
       .sort((a, b) => (a.nextActionAt ?? '').localeCompare(b.nextActionAt ?? ''))

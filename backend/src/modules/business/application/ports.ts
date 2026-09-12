@@ -22,6 +22,7 @@ import type {
   UpdateTxnRequest,
   CreateRecurringItemRequest,
   UpdateRecurringItemRequest,
+  MonthGoal,
 } from '@oculus-business/contracts'
 
 /// Репозиторий бизнес-модуля: единственная точка доступа к хранилищу.
@@ -72,6 +73,8 @@ export type BusinessRepository = {
   deleteRecurring(id: string): Promise<void>
   getSettings(): Promise<BizSettings>
   saveSettings(settings: BizSettings): Promise<BizSettings>
+  getGoal(month: string): Promise<MonthGoal>
+  saveGoal(goal: MonthGoal): Promise<MonthGoal>
 }
 
 export type Clock = {

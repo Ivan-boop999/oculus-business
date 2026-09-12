@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button'
 import type { CrmStage, Deal } from '@oculus-business/contracts'
 
 export type StageWithDeals = CrmStage & { deals: Deal[] }
-import { dateLabel, formatMoneyShort } from '@/platform/format'
+import { dateLabel, formatMoneyShort, todayDateOnly } from '@/platform/format'
+
+import { useAuth } from '@/features/auth'
 
 import {
   useCrmBoardQuery,
@@ -26,6 +28,8 @@ export function CrmBoardPage() {
   const [createStageId, setCreateStageId] = useState<string | null>(null)
   const [openMenuStageId, setOpenMenuStageId] = useState<string | null>(null)
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null)
+  const [mineOnly, setMineOnly] = useState(false)
+  const { user } = useAuth()
 
   if (board.isPending) {
     return <p className="py-16 text-center text-sm text-muted-foreground">Загружаем доску…</p>
@@ -41,7 +45,13 @@ export function CrmBoardPage() {
     )
   }
 
-  const stages = board.data.stages
+  const allStages = board.data.stages
+  const stages = mineOnly
+    ? allStages.map((stage) => ({
+        ...stage,
+        deals: stage.deals.filter((deal) => deal.createdById === user?.id),
+      }))
+    : allStages
 
   const onDropIntoStage = (stage: StageWithDeals, event: DragEvent) => {
     event.preventDefault()
@@ -54,7 +64,11 @@ export function CrmBoardPage() {
 
   return (
     <div className="grid gap-3">
-      <BoardHeader stages={stages} />
+      <BoardHeader
+        mineOnly={mineOnly}
+        onToggleMine={() => setMineOnly((value) => !value)}
+        stages={stages}
+      />
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:gap-4 lg:px-0">
         {stages.map((stage) => (
           <section
@@ -139,7 +153,13 @@ export function CrmBoardPage() {
                     {deal.commentsCount > 0 && <span>· 💬 {deal.commentsCount}</span>}
                   </div>
                   {deal.nextActionAt && (
-                    <div className="mt-2 rounded-lg border border-[#6366F1]/25 bg-[#6366F1]/10 px-2 py-1 text-xs text-[#A5B4FC]">
+                    <div
+                      className={`mt-2 rounded-lg border px-2 py-1 text-xs ${
+                        deal.nextActionAt < todayDateOnly()
+                          ? 'border-[#F43F5E]/30 bg-[#F43F5E]/10 text-[#FB7185]'
+                          : 'border-[#6366F1]/25 bg-[#6366F1]/10 text-[#A5B4FC]'
+                      }`}
+                    >
                       ⏭ {dateLabel(deal.nextActionAt)}
                       {deal.nextAction ? ` — ${deal.nextAction}` : ''}
                     </div>
@@ -196,7 +216,15 @@ export function CrmBoardPage() {
   )
 }
 
-function BoardHeader({ stages }: { stages: StageWithDeals[] }) {
+function BoardHeader({
+  mineOnly,
+  onToggleMine,
+  stages,
+}: {
+  mineOnly: boolean
+  onToggleMine: () => void
+  stages: StageWithDeals[]
+}) {
   const active = stages.filter((stage) => !stage.isWon && !stage.isLost)
   const activeCount = active.reduce((sum, stage) => sum + stage.deals.length, 0)
   const pipelineMonthly = active.reduce(
@@ -210,6 +238,16 @@ function BoardHeader({ stages }: { stages: StageWithDeals[] }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <h1 className="mr-auto text-xl font-semibold tracking-tight text-white lg:text-2xl">Сделки</h1>
+      <button
+        className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+          mineOnly
+            ? 'border-[#6366F1]/40 bg-[#6366F1]/15 text-[#A5B4FC]'
+            : 'border-white/10 bg-white/5 text-muted-foreground hover:text-white'
+        }`}
+        onClick={onToggleMine}
+      >
+        {mineOnly ? 'Мои сделки' : 'Все / Мои'}
+      </button>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">в работе: {activeCount}</Badge>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">пайплайн: {formatMoneyShort(pipelineMonthly)}/мес</Badge>
       <Badge

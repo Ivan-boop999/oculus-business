@@ -36,6 +36,15 @@ const SOURCE_SUGGESTIONS = [
   'Выставка',
 ]
 
+const LOST_REASONS = [
+  'Дорого',
+  'Не тот профиль',
+  'Нет бюджета',
+  'Выбрали другого',
+  'Остыл / пропал',
+  'Другое',
+]
+
 type DealFormState = {
   title: string
   contactName: string
@@ -94,6 +103,8 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
   const [form, setForm] = useState<DealFormState>(() => formFromDeal(deal))
   const [error, setError] = useState<string | null>(null)
   const isDesktop = useIsDesktop()
+  const [pendingLostStage, setPendingLostStage] = useState<string | null>(null)
+  const [lostReasonChoice, setLostReasonChoice] = useState('')
   const [comment, setComment] = useState('')
 
   useEffect(() => {
@@ -101,6 +112,8 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
       setForm(formFromDeal(deal))
       setError(null)
       setComment('')
+      setPendingLostStage(null)
+      setLostReasonChoice('')
     }
   }, [open, deal])
 
@@ -244,6 +257,7 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
           </Field>
 
           {deal && (
+            <>
             <Field label="Этап">
               <select
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -251,6 +265,10 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
                   const nextStageId = event.target.value
                   const target = stages.find((item) => item.id === nextStageId)
                   if (!target) return
+                  if (target.isLost && !deal?.lostReason) {
+                    setPendingLostStage(nextStageId)
+                    return
+                  }
                   moveDeal.mutate({
                     id: deal.id,
                     stageId: nextStageId,
@@ -266,6 +284,61 @@ export function DealSheet({ deal, onCreateStageId, onClose, open, stages }: Deal
                 ))}
               </select>
             </Field>
+
+            {pendingLostStage !== null && (
+              <div className="grid gap-2 rounded-xl border border-[#F43F5E]/30 bg-[#F43F5E]/8 p-3">
+                <p className="text-xs font-medium text-[#FB7185]">
+                  Укажите причину отказа — она пойдёт в аналитику воронки
+                </p>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  onChange={(event) => setLostReasonChoice(event.target.value)}
+                  value={lostReasonChoice}
+                >
+                  <option value="">Выберите причину…</option>
+                  {LOST_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <Button
+                    disabled={!lostReasonChoice || moveDeal.isPending || updateDeal.isPending}
+                    onClick={() => {
+                      const target = stages.find((item) => item.id === pendingLostStage)
+                      moveDeal.mutate(
+                        {
+                          id: deal.id,
+                          stageId: pendingLostStage,
+                          position: target?.deals.length ?? 0,
+                        },
+                        {
+                          onSuccess: () => {
+                            updateDeal.mutate({ id: deal.id, input: { lostReason: lostReasonChoice } })
+                            setPendingLostStage(null)
+                          },
+                        },
+                      )
+                    }}
+                    size="sm"
+                    variant="destructive"
+                  >
+                    Перенести в отказ
+                  </Button>
+                  <Button onClick={() => setPendingLostStage(null)} size="sm" variant="outline">
+                    Отмена
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {stage?.isLost && deal.lostReason && (
+              <p className="rounded-lg border border-[#F43F5E]/25 bg-[#F43F5E]/8 px-3 py-2 text-xs text-[#FB7185]">
+                Причина отказа: {deal.lostReason}
+              </p>
+            )}
+            </>
           )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}

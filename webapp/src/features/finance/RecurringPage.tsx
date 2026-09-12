@@ -10,6 +10,7 @@ import { useIsDesktop } from '@/platform/use-is-desktop'
 
 import {
   useCreateRecurringMutation,
+  useCreateTxnMutation,
   useDeleteRecurringMutation,
   useRecurringQuery,
   useSaveSettingsMutation,
@@ -74,19 +75,20 @@ export function RecurringPage() {
 }
 
 function Row({ item, onSelect }: { item: RecurringItem; onSelect: () => void }) {
+  const createTxn = useCreateTxnMutation()
+  const justPaid =
+    createTxn.isSuccess && createTxn.variables?.category === item.category
+
   return (
-    <button
-      className="flex items-center gap-3 rounded-xl border border-white/6 bg-[#101724] p-3 text-left transition-all hover:border-[#6366F1]/35"
-      onClick={onSelect}
-    >
-      <span className="min-w-0 flex-1">
+    <div className="flex items-center gap-3 rounded-xl border border-white/6 bg-[#101724] p-3 transition-all hover:border-[#6366F1]/35">
+      <button className="min-w-0 flex-1 text-left" onClick={onSelect}>
         <span className="block truncate text-sm font-medium">{item.category}</span>
         <span className="block text-xs text-muted-foreground">
           {item.dayOfMonth}-е число
           {item.activeUntil ? ` · до ${item.activeUntil}` : ' · бессрочно'}
           {item.comment ? ` · ${item.comment}` : ''}
         </span>
-      </span>
+      </button>
       <span
         className={`shrink-0 text-sm font-semibold ${
           item.kind === 'income'
@@ -97,7 +99,27 @@ function Row({ item, onSelect }: { item: RecurringItem; onSelect: () => void }) 
         {item.kind === 'income' ? '+' : '−'}
         {formatMoney(item.amount)}
       </span>
-    </button>
+      <button
+        className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+          justPaid
+            ? 'border-[#34D399]/40 bg-[#34D399]/15 text-[#34D399]'
+            : 'border-white/10 bg-white/5 text-muted-foreground hover:border-[#6366F1]/40 hover:text-white'
+        }`}
+        disabled={createTxn.isPending}
+        onClick={() =>
+          createTxn.mutate({
+            kind: item.kind,
+            amount: item.amount,
+            occurredOn: todayDateOnly(),
+            category: item.category,
+            comment: `Регулярный платеж (${item.dayOfMonth}-е число)`,
+          })
+        }
+        title="Создать факт операции за сегодня"
+      >
+        {createTxn.isPending ? '…' : justPaid ? '✓ Оплачено' : 'Отметить оплату'}
+      </button>
+    </div>
   )
 }
 

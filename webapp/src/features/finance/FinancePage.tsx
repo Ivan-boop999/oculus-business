@@ -7,6 +7,7 @@ import type { Txn } from '@oculus-business/contracts'
 import { currentMonthKey, formatMoney, monthLabel } from '@/platform/format'
 
 import { useSummaryQuery, useTxnsQuery } from './queries'
+import { MonthGoalCard } from './MonthGoalCard'
 import { TxnSheet } from './TxnSheet'
 
 const INCOME_CATEGORIES = [
@@ -44,6 +45,26 @@ export function FinancePage() {
 
   const months = txns.data?.months ?? [month]
 
+  const exportCsv = () => {
+    const rows = [['Дата', 'Тип', 'Категория', 'Сумма', 'Комментарий']]
+    for (const txn of txns.data?.items ?? []) {
+      rows.push([
+        txn.occurredOn,
+        txn.kind === 'income' ? 'Доход' : 'Расход',
+        txn.category,
+        String(txn.kind === 'income' ? txn.amount : -txn.amount),
+        (txn.comment ?? '').replace(/;/g, ','),
+      ])
+    }
+    const csv = '\uFEFF' + rows.map((row) => row.join(';')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `oculus-business-${month}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="grid gap-4 lg:grid-cols-[300px_1fr] lg:items-start lg:gap-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -60,6 +81,13 @@ export function FinancePage() {
             </option>
           ))}
         </select>
+        <button
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-[#6366F1]/35 hover:text-white"
+          onClick={exportCsv}
+          title="Скачать операции месяца в CSV (для Excel)"
+        >
+          CSV
+        </button>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -109,6 +137,8 @@ export function FinancePage() {
           <Link to="/app/finance/forecast">Прогноз и runway</Link>
         </Button>
       </div>
+
+      <MonthGoalCard month={month} monthIncome={summary.data?.income ?? 0} mrrDelta={0} />
       </div>
 
       <section className="grid gap-2">

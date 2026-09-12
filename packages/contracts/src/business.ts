@@ -45,6 +45,10 @@ export const dealSchema = z
     note: z.string().nullable(),
     nextActionAt: dateOnlySchema.nullable(),
     nextAction: z.string().nullable(),
+    lostReason: z.string().nullable(),
+    lastStageChangeAt: z.string().datetime().nullable(),
+    createdById: z.string().uuid(),
+    createdByName: z.string().nullable(),
     commentsCount: z.number().int(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
@@ -80,6 +84,7 @@ export const createDealRequestSchema = z
     note: nullableTrimmed(4000).optional(),
     nextActionAt: dateOnlySchema.nullable().optional(),
     nextAction: nullableTrimmed(400).optional(),
+    lostReason: nullableTrimmed(400).optional(),
     stageId: z.string().uuid().optional(),
   })
   .strict()
@@ -299,6 +304,18 @@ export const bizSettingsSchema = z
   })
   .strict()
 
+export const monthGoalSchema = z
+  .object({
+    month: z.string().regex(/^\d{4}-\d{2}$/),
+    mrrGoal: z.number().int().min(0).max(1_000_000_000),
+    incomeGoal: z.number().int().min(0).max(1_000_000_000),
+  })
+  .strict()
+
+export const saveMonthGoalRequestSchema = monthGoalSchema
+
+export const monthGoalResponseSchema = z.object({ goal: monthGoalSchema }).strict()
+
 export const updateBizSettingsRequestSchema = bizSettingsSchema.strict()
 
 export const bizSettingsResponseSchema = z.object({ settings: bizSettingsSchema }).strict()
@@ -372,6 +389,7 @@ export const nextActionSchema = z
     stageTitle: z.string(),
     nextAction: z.string().nullable(),
     nextActionAt: dateOnlySchema.nullable(),
+    overdue: z.boolean(),
   })
   .strict()
 
@@ -439,6 +457,7 @@ export type UpdateTxnRequest = z.infer<typeof updateTxnRequestSchema>
 export type CreateRecurringItemRequest = z.infer<typeof createRecurringItemRequestSchema>
 export type UpdateRecurringItemRequest = z.infer<typeof updateRecurringItemRequestSchema>
 export type BizSettings = z.infer<typeof bizSettingsSchema>
+export type MonthGoal = z.infer<typeof monthGoalSchema>
 export type FinanceSummary = z.infer<typeof financeSummaryResponseSchema>
 export type ForecastMonth = z.infer<typeof forecastMonthSchema>
 export type ForecastResponse = z.infer<typeof forecastResponseSchema>

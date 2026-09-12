@@ -150,6 +150,11 @@ export function DashboardPage() {
           className="lg:col-span-3"
           title="Следующие действия"
         >
+          {data.nextActions.some((action) => action.overdue) && (
+            <p className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-[#F43F5E]/30 bg-[#F43F5E]/10 px-2 py-1 text-[11px] font-semibold text-[#FB7185]">
+              ⚠ Просрочено: {data.nextActions.filter((action) => action.overdue).length}
+            </p>
+          )}
           <div className="grid gap-2">
             {data.nextActions.length === 0 && (
               <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-xs text-muted-foreground">
@@ -158,11 +163,21 @@ export function DashboardPage() {
             )}
             {data.nextActions.map((action) => (
               <Link
-                className="group flex items-center gap-3 rounded-xl border border-white/6 bg-white/[0.025] px-3 py-2.5 transition-all hover:border-[#6366F1]/35 hover:bg-[rgba(99,102,241,0.07)]"
+                className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all ${
+                  action.overdue
+                    ? 'border-[#F43F5E]/35 bg-[#F43F5E]/8 hover:border-[#F43F5E]/55'
+                    : 'border-white/6 bg-white/[0.025] hover:border-[#6366F1]/35 hover:bg-[rgba(99,102,241,0.07)]'
+                }`}
                 key={action.dealId}
                 to="/app/crm"
               >
-                <span className="grid shrink-0 rounded-md border border-[#6366F1]/30 bg-[#6366F1]/12 px-2 py-1 text-[11px] font-semibold text-[#A5B4FC] tabular-nums">
+                <span
+                  className={`grid shrink-0 rounded-md border px-2 py-1 text-[11px] font-semibold tabular-nums ${
+                    action.overdue
+                      ? 'border-[#F43F5E]/40 bg-[#F43F5E]/15 text-[#FB7185]'
+                      : 'border-[#6366F1]/30 bg-[#6366F1]/12 text-[#A5B4FC]'
+                  }`}
+                >
                   {action.nextActionAt ? dateLabel(action.nextActionAt) : '—'}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm">

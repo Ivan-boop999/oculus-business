@@ -22,6 +22,7 @@ import {
   forecastQuerySchema,
   forecastResponseSchema,
   idParamSchema,
+  monthGoalResponseSchema,
   moveDealRequestSchema,
   moveDevTaskRequestSchema,
   recurringItemResponseSchema,
@@ -30,6 +31,7 @@ import {
   txnsResponseSchema,
   txnResponseSchema,
   updateBizSettingsRequestSchema,
+  saveMonthGoalRequestSchema,
   updateCrmStageRequestSchema,
   updateDevColumnRequestSchema,
   updateDevTaskRequestSchema,
@@ -436,6 +438,28 @@ const summaryRoute = createRoute({
   },
 })
 
+const goalsRoute = createRoute({
+  method: 'get',
+  path: '/goals',
+  security: bearerSecurity,
+  request: { query: txnsQuerySchema },
+  responses: {
+    200: { content: json(monthGoalResponseSchema), description: 'Month goal' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const saveGoalRoute = createRoute({
+  method: 'put',
+  path: '/goals',
+  security: bearerSecurity,
+  request: { body: { content: json(saveMonthGoalRequestSchema) } },
+  responses: {
+    200: { content: json(monthGoalResponseSchema), description: 'Saved month goal' },
+    ...standardErrors,
+  },
+})
+
 const forecastRoute = createRoute({
   method: 'get',
   path: '/forecast',
@@ -624,6 +648,15 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
   finance.openapi(summaryRoute, async (c) => {
     const { month } = c.req.valid('query')
     return c.json(await executeBusiness(() => service.summary(month)), 200)
+  })
+  finance.openapi(goalsRoute, async (c) => {
+    const { month } = c.req.valid('query')
+    const goal = await executeBusiness(() => service.goal(month ?? ''))
+    return c.json({ goal }, 200)
+  })
+  finance.openapi(saveGoalRoute, async (c) => {
+    const goal = await executeBusiness(() => service.saveGoal(c.req.valid('json')))
+    return c.json({ goal }, 200)
   })
   finance.openapi(forecastRoute, async (c) => {
     const { months } = c.req.valid('query')

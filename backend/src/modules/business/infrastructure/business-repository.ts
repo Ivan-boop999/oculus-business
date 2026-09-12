@@ -33,7 +33,9 @@ import type { DbClient } from '../../../db'
 import { BusinessFailure } from '../domain/errors'
 import type { BusinessRepository } from '../application/ports'
 
-type DealRow = Awaited<ReturnType<DbClient['deal']['findUniqueOrThrow']>>
+type DealRow = Awaited<ReturnType<DbClient['deal']['findUniqueOrThrow']>> & {
+  createdBy: { displayName: string | null }
+}
 type DevTaskRow = Awaited<ReturnType<DbClient['devTask']['findUniqueOrThrow']>>
 type TxnRow = Awaited<ReturnType<DbClient['txn']['findUniqueOrThrow']>>
 type RecurringRow = Awaited<ReturnType<DbClient['recurringItem']['findUniqueOrThrow']>>
@@ -63,6 +65,10 @@ function toDealDto(row: DealRow & { _count: { comments: number } }): Deal {
     note: row.note,
     nextActionAt: toDateOnly(row.nextActionAt),
     nextAction: row.nextAction,
+    lostReason: row.lostReason,
+    lastStageChangeAt: row.lastStageChangeAt ? row.lastStageChangeAt.toISOString() : null,
+    createdById: row.createdById,
+    createdByName: row.createdBy?.displayName ?? null,
     commentsCount: row._count.comments,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -157,7 +163,10 @@ async function guarded<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-const dealInclude = { _count: { select: { comments: true } } } as const
+const dealInclude = {
+  _count: { select: { comments: true } },
+  createdBy: { select: { displayName: true } },
+} as const
 const devTaskInclude = { _count: { select: { comments: true } } } as const
 const commentAuthorInclude = { author: { select: { displayName: true } } } as const
 
@@ -202,6 +211,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
             stageId,
             position: (last?.position ?? -1) + 1,
             createdById,
+            lastStageChangeAt: new Date(),
           },
           include: dealInclude,
         })
@@ -224,6 +234,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
           data.nextActionAt = input.nextActionAt ? fromDateOnly(input.nextActionAt) : null
         }
         if ('nextAction' in input) data.nextAction = input.nextAction ?? null
+        if ('lostReason' in input) data.lostReason = input.lostReason ?? null
         if ('stageId' in input && input.stageId !== undefined) data.stageId = input.stageId
         const row = await db.deal.update({ where: { id }, data, include: dealInclude })
         return toDealDto(row)
@@ -236,16 +247,30 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         if (moving === null) throw new BusinessFailure('not_found', 'Сделка не найдена')
         const stage = await tx.crmStage.findUnique({ where: { id: stageId } })
         if (stage === null) throw new BusinessFailure('not_found', 'Этап не найден')
+        const previousStage = await tx.crmStage.findUnique({
+          where: { id: moving.stageId },
+          select: { title: true },
+        })
         const others = (
           await tx.deal.findMany({
             where: { stageId },
             orderBy: { position: 'asc' },
           })
         ).filter((deal) => deal.id !== id)
+        const now = new Date()
+        if (moving.stageId !== stageId) {
+          await tx.dealHistory.create({
+            data: {
+              dealId: id,
+              fromStage: previousStage?.title ?? null,
+              toStage: stage.title,
+            },
+          })
+        }
         const clamped = Math.max(0, Math.min(position, others.length))
         const ordered = [
           ...others.slice(0, clamped),
-          { ...moving, stageId },
+          { ...moving, stageId, lastStageChangeAt: now },
           ...others.slice(clamped),
         ]
         for (let index = 0; index < ordered.length; index += 1) {
@@ -581,6 +606,20 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         openingBalanceDate: toDateOnly(created.openingBalanceDate) ?? '',
         openingBalance: created.openingBalance,
       } satisfies BizSettings
+    },
+
+    async getGoal(month) {
+      const row = await db.monthGoal.findUnique({ where: { month } })
+      return row ?? { month, mrrGoal: 0, incomeGoal: 0 }
+    },
+
+    async saveGoal(goal) {
+      const row = await db.monthGoal.upsert({
+        where: { month: goal.month },
+        update: { mrrGoal: goal.mrrGoal, incomeGoal: goal.incomeGoal },
+        create: goal,
+      })
+      return row
     },
 
     async saveSettings(settings) {
