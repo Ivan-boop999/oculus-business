@@ -1,0 +1,255 @@
+import { useState, type DragEvent } from 'react'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import type { CrmStage, Deal } from '@oculus-business/contracts'
+
+export type StageWithDeals = CrmStage & { deals: Deal[] }
+import { dateLabel, formatMoneyShort } from '@/platform/format'
+
+import {
+  useCrmBoardQuery,
+  useCreateStageMutation,
+  useDeleteStageMutation,
+  useMoveDealMutation,
+  useUpdateStageMutation,
+} from './queries'
+import { DealSheet } from './DealSheet'
+
+/// Канбан-доска сделок: горизонтальный скролл этапов, карточки-сделки,
+/// перетаскивание на десктопе и перемещение через карточку на телефоне.
+export function CrmBoardPage() {
+  const board = useCrmBoardQuery()
+  const moveDeal = useMoveDealMutation()
+  const createStage = useCreateStageMutation()
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null)
+  const [createStageId, setCreateStageId] = useState<string | null>(null)
+  const [openMenuStageId, setOpenMenuStageId] = useState<string | null>(null)
+  const [dragOverStageId, setDragOverStageId] = useState<string | null>(null)
+
+  if (board.isPending) {
+    return <p className="py-16 text-center text-sm text-muted-foreground">Загружаем доску…</p>
+  }
+  if (board.isError) {
+    return (
+      <div className="grid gap-3 py-12 text-center">
+        <p className="text-sm text-destructive">Не удалось загрузить доску сделок</p>
+        <Button onClick={() => void board.refetch()} variant="outline">
+          Повторить
+        </Button>
+      </div>
+    )
+  }
+
+  const stages = board.data.stages
+
+  const onDropIntoStage = (stage: StageWithDeals, event: DragEvent) => {
+    event.preventDefault()
+    setDragOverStageId(null)
+    const dealId = event.dataTransfer.getData('text/plain')
+    if (!dealId) return
+    if (stage.deals.some((deal) => deal.id === dealId)) return
+    moveDeal.mutate({ id: dealId, stageId: stage.id, position: stage.deals.length })
+  }
+
+  return (
+    <div className="grid gap-3">
+      <BoardHeader stages={stages} />
+      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
+        {stages.map((stage) => (
+          <section
+            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 ${
+              dragOverStageId === stage.id ? 'border-primary' : ''
+            }`}
+            key={stage.id}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setDragOverStageId(stage.id)
+            }}
+            onDragLeave={() => setDragOverStageId(null)}
+            onDrop={(event) => onDropIntoStage(stage, event)}
+          >
+            <header className="flex items-center justify-between gap-2 px-3 pt-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="truncate text-sm font-semibold">{stage.title}</h2>
+                {stage.isWon && <Badge variant="secondary">выиграна</Badge>}
+                {stage.isLost && <Badge variant="outline">отказ</Badge>}
+              </div>
+              <div className="flex items-center gap-1">
+                <Badge variant="secondary">{stage.deals.length}</Badge>
+                <button
+                  aria-label={`Меню этапа ${stage.title}`}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() =>
+                    setOpenMenuStageId(openMenuStageId === stage.id ? null : stage.id)
+                  }
+                >
+                  ⋯
+                </button>
+              </div>
+            </header>
+
+            {openMenuStageId === stage.id && (
+              <StageMenu stage={stage} onDone={() => setOpenMenuStageId(null)} />
+            )}
+
+            <div className="flex flex-1 flex-col gap-2 p-2">
+              {stage.deals.map((deal) => (
+                <article
+                  className="cursor-pointer rounded-lg border bg-background p-3 shadow-xs transition-shadow hover:shadow-sm active:scale-[0.99]"
+                  draggable
+                  key={deal.id}
+                  onClick={() => setSelectedDeal(deal)}
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData('text/plain', deal.id)
+                    event.dataTransfer.effectAllowed = 'move'
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm leading-snug font-medium">{deal.title}</h3>
+                  </div>
+                  {(deal.monthlyAmount > 0 || deal.oneTimeAmount > 0) && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {deal.monthlyAmount > 0 && (
+                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          {formatMoneyShort(deal.monthlyAmount)}/мес
+                        </Badge>
+                      )}
+                      {deal.oneTimeAmount > 0 && (
+                        <Badge variant="secondary">
+                          {formatMoneyShort(deal.oneTimeAmount)} разово
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    {deal.contactName && <span>{deal.contactName}</span>}
+                    {deal.source && <span>· {deal.source}</span>}
+                    {deal.commentsCount > 0 && <span>· 💬 {deal.commentsCount}</span>}
+                  </div>
+                  {deal.nextActionAt && (
+                    <div className="mt-2 rounded-md bg-primary/5 px-2 py-1 text-xs text-primary">
+                      ⏭ {dateLabel(deal.nextActionAt)}
+                      {deal.nextAction ? ` — ${deal.nextAction}` : ''}
+                    </div>
+                  )}
+                </article>
+              ))}
+              <Button
+                onClick={() => setCreateStageId(stage.id)}
+                size="sm"
+                variant="ghost"
+              >
+                + Сделка
+              </Button>
+            </div>
+          </section>
+        ))}
+
+        <div className="w-40 shrink-0 pt-3">
+          <Button
+            onClick={() => {
+              const title = window.prompt('Название нового этапа')
+              if (title && title.trim()) {
+                createStage.mutate({ title: title.trim(), isWon: false, isLost: false })
+              }
+            }}
+            variant="outline"
+          >
+            + Этап
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        На телефоне откройте карточку и нажмите «Переместить». С компьютера карточку можно
+        перетащить мышью.
+      </p>
+
+      <DealSheet
+        deal={selectedDeal}
+        onCreateStageId={createStageId}
+        onClose={() => {
+          setSelectedDeal(null)
+          setCreateStageId(null)
+        }}
+        open={selectedDeal !== null || createStageId !== null}
+        stages={stages}
+      />
+    </div>
+  )
+}
+
+function BoardHeader({ stages }: { stages: StageWithDeals[] }) {
+  const active = stages.filter((stage) => !stage.isWon && !stage.isLost)
+  const activeCount = active.reduce((sum, stage) => sum + stage.deals.length, 0)
+  const pipelineMonthly = active.reduce(
+    (sum, stage) => sum + stage.deals.reduce((s, deal) => s + deal.monthlyAmount, 0),
+    0,
+  )
+  const mrr = stages
+    .filter((stage) => stage.isWon)
+    .reduce((sum, stage) => sum + stage.deals.reduce((s, deal) => s + deal.monthlyAmount, 0), 0)
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <h1 className="mr-auto text-lg font-semibold tracking-tight">Сделки</h1>
+      <Badge variant="secondary">в работе: {activeCount}</Badge>
+      <Badge variant="secondary">пайплайн: {formatMoneyShort(pipelineMonthly)}/мес</Badge>
+      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+        MRR: {formatMoneyShort(mrr)}/мес
+      </Badge>
+    </div>
+  )
+}
+
+function StageMenu({ stage, onDone }: { stage: StageWithDeals; onDone: () => void }) {
+  const updateStage = useUpdateStageMutation()
+  const deleteStage = useDeleteStageMutation()
+
+  return (
+    <div className="mx-3 mt-2 grid gap-1 rounded-lg border bg-background p-2 text-sm">
+      <button
+        className="rounded-md px-2 py-1.5 text-left hover:bg-muted"
+        onClick={() => {
+          const title = window.prompt('Новое название этапа', stage.title)
+          if (title && title.trim()) {
+            updateStage.mutate({ id: stage.id, input: { title: title.trim() } })
+          }
+          onDone()
+        }}
+      >
+        Переименовать
+      </button>
+      <button
+        className="rounded-md px-2 py-1.5 text-left hover:bg-muted"
+        onClick={() => {
+          updateStage.mutate({ id: stage.id, input: { isWon: !stage.isWon, isLost: false } })
+          onDone()
+        }}
+      >
+        {stage.isWon ? 'Снять «выиграна»' : 'Считать победой (MRR)'}
+      </button>
+      <button
+        className="rounded-md px-2 py-1.5 text-left hover:bg-muted"
+        onClick={() => {
+          updateStage.mutate({ id: stage.id, input: { isLost: !stage.isLost, isWon: false } })
+          onDone()
+        }}
+      >
+        {stage.isLost ? 'Снять «отказ»' : 'Считать отказом'}
+      </button>
+      <button
+        className="rounded-md px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
+        onClick={() => {
+          if (window.confirm(`Удалить этап «${stage.title}»?`)) {
+            deleteStage.mutate(stage.id)
+          }
+          onDone()
+        }}
+      >
+        Удалить этап
+      </button>
+    </div>
+  )
+}

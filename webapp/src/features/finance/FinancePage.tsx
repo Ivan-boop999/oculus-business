@@ -1,0 +1,195 @@
+import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import type { Txn } from '@oculus-business/contracts'
+import { currentMonthKey, formatMoney, monthLabel } from '@/platform/format'
+
+import { useSummaryQuery, useTxnsQuery } from './queries'
+import { TxnSheet } from './TxnSheet'
+
+const INCOME_CATEGORIES = [
+  'Подписка',
+  'Возмездное обследование',
+  'Внедрение (Setup)',
+  'Производственный консалтинг',
+  'Интеграции',
+  'Прочее',
+]
+
+const EXPENSE_CATEGORIES = [
+  'Сервер / хостинг',
+  'Обслуживание ООО',
+  'Зарплата',
+  'Реклама',
+  'Софт и сервисы',
+  'Юристы',
+  'Логистика',
+  'Налоги',
+  'Прочее',
+]
+
+export { INCOME_CATEGORIES, EXPENSE_CATEGORIES }
+
+/// Финансы за месяц: сводка, список операций, быстрое добавление, ссылки на
+/// регулярные платежи и прогноз.
+export function FinancePage() {
+  const [month, setMonth] = useState(currentMonthKey())
+  const [selectedTxn, setSelectedTxn] = useState<Txn | null>(null)
+  const [creating, setCreating] = useState(false)
+
+  const txns = useTxnsQuery(month)
+  const summary = useSummaryQuery(month)
+
+  const months = txns.data?.months ?? [month]
+
+  return (
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="mr-auto text-lg font-semibold tracking-tight">Финансы</h1>
+        <select
+          aria-label="Месяц"
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          onChange={(event) => setMonth(event.target.value)}
+          value={month}
+        >
+          {months.map((item) => (
+            <option key={item} value={item}>
+              {monthLabel(item)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <Tile
+          label="Доход"
+          loading={summary.isPending}
+          tone="text-emerald-600 dark:text-emerald-400"
+          value={summary.data ? formatMoney(summary.data.income) : '—'}
+        />
+        <Tile
+          label="Расход"
+          loading={summary.isPending}
+          tone="text-red-600 dark:text-red-400"
+          value={summary.data ? formatMoney(summary.data.expense) : '—'}
+        />
+        <Tile
+          label="Итог"
+          loading={summary.isPending}
+          tone={
+            (summary.data?.net ?? 0) >= 0
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-red-600 dark:text-red-400'
+          }
+          value={summary.data ? formatMoney(summary.data.net) : '—'}
+        />
+      </div>
+
+      {summary.data && (
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="secondary">Баланс: {formatMoney(summary.data.balance)}</Badge>
+          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+            MRR: {formatMoney(summary.data.mrr)}/мес
+          </Badge>
+          <Badge variant="outline">
+            Регулярно: +{formatMoney(summary.data.activeRecurringIncome)} / −
+            {formatMoney(summary.data.activeRecurringExpense)}
+          </Badge>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button asChild size="sm" variant="outline">
+          <Link to="/app/finance/recurring">Регулярные платежи</Link>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link to="/app/finance/forecast">Прогноз и runway</Link>
+        </Button>
+      </div>
+
+      <section className="grid gap-2">
+        <h2 className="text-sm font-semibold">Операции месяца</h2>
+        {txns.isPending && <p className="text-sm text-muted-foreground">Загружаем…</p>}
+        {txns.isError && <p className="text-sm text-destructive">Ошибка загрузки операций</p>}
+        {txns.data?.items.length === 0 && (
+          <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+            В этом месяце операций нет. Нажмите «+», чтобы добавить доход или расход.
+          </p>
+        )}
+        {txns.data?.items.map((txn) => (
+          <button
+            className="flex items-center gap-3 rounded-xl border bg-background p-3 text-left transition-colors hover:bg-muted/40"
+            key={txn.id}
+            onClick={() => setSelectedTxn(txn)}
+          >
+            <span
+              className={`grid size-9 shrink-0 place-items-center rounded-full text-base ${
+                txn.kind === 'income'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+              }`}
+            >
+              {txn.kind === 'income' ? '↓' : '↑'}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{txn.category}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {txn.comment ?? '—'}
+              </span>
+            </span>
+            <span
+              className={`shrink-0 text-sm font-semibold ${
+                txn.kind === 'income'
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-red-600 dark:text-red-400'
+              }`}
+            >
+              {txn.kind === 'income' ? '+' : '−'}
+              {formatMoney(txn.amount)}
+            </span>
+          </button>
+        ))}
+      </section>
+
+      <Button
+        className="fixed right-4 bottom-20 z-30 h-14 w-14 rounded-full text-2xl shadow-lg"
+        onClick={() => setCreating(true)}
+        size="icon-lg"
+      >
+        +
+      </Button>
+
+      <TxnSheet
+        onClose={() => {
+          setSelectedTxn(null)
+          setCreating(false)
+        }}
+        open={selectedTxn !== null || creating}
+        txn={selectedTxn}
+      />
+    </div>
+  )
+}
+
+function Tile({
+  label,
+  loading,
+  tone,
+  value,
+}: {
+  label: string
+  loading: boolean
+  tone: string
+  value: string
+}) {
+  return (
+    <div className="rounded-xl border bg-background p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-sm font-semibold ${loading ? 'text-muted-foreground' : tone}`}>
+        {loading ? '…' : value}
+      </p>
+    </div>
+  )
+}
