@@ -212,7 +212,13 @@ function BoardHeader({ stages }: { stages: StageWithDeals[] }) {
       <h1 className="mr-auto text-xl font-semibold tracking-tight text-white lg:text-2xl">Сделки</h1>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">в работе: {activeCount}</Badge>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">пайплайн: {formatMoneyShort(pipelineMonthly)}/мес</Badge>
-      <Badge className="border-[#34D399]/25 bg-[#34D399]/10 text-[#34D399]">
+      <Badge
+        className={
+          mrr > 0
+            ? 'border-[#34D399]/25 bg-[#34D399]/10 text-[#34D399]'
+            : 'border-white/10 bg-white/5 text-muted-foreground'
+        }
+      >
         MRR: {formatMoneyShort(mrr)}/мес
       </Badge>
     </div>
