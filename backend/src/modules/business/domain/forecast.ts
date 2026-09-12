@@ -109,6 +109,8 @@ export type ForecastInput = {
   recurring: RecurringItem[]
   /// Сумма monthly_amount сделок на этапах-победах: стабильный ежемесячный доход (MRR).
   mrr: number
+  /// Ожидаемые поступления (дебиторка) с вероятностью — учитываются с коэффициентом p/100.
+  expected?: Array<{ dueDate: string; amount: number; probability: number }>
 }
 
 /// Прогноз: начиная с текущего месяца, на `horizon` месяцев вперёд.
@@ -127,7 +129,14 @@ export function computeForecast(input: ForecastInput): ForecastComputation {
     // Разовые будущие операции: для текущего месяца — только после сегодня, для будущих — весь месяц.
     const { oneTimeIncome, oneTimeExpense } = sumTxnsInMonth(input.txns, month, offset === 0 ? today : undefined)
     const mrrIncome = input.mrr
-    const plannedIncome = recurringIncome + mrrIncome + oneTimeIncome
+    // Дебиторка: ожидаемые поступления месяца с коэффициентом вероятности.
+    let expectedIncome = 0
+    for (const payment of input.expected ?? []) {
+      if (monthOf(payment.dueDate) !== month) continue
+      if (offset === 0 && payment.dueDate <= today) continue
+      expectedIncome += Math.round((payment.amount * payment.probability) / 100)
+    }
+    const plannedIncome = recurringIncome + mrrIncome + oneTimeIncome + expectedIncome
     const plannedExpense = recurringExpense + oneTimeExpense
     const monthNet = plannedIncome - plannedExpense
     runningBalance += monthNet
@@ -136,6 +145,7 @@ export function computeForecast(input: ForecastInput): ForecastComputation {
       recurringIncome,
       mrrIncome,
       oneTimeIncome,
+      expectedIncome,
       recurringExpense,
       oneTimeExpense,
       plannedIncome,

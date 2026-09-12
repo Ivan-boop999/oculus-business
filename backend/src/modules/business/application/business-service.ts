@@ -20,6 +20,13 @@ import type {
   FinanceSummary,
   ForecastResponse,
   MonthGoal,
+  CrmReport,
+  MrrMovement,
+  CashflowHistory,
+  DealHistoryEntry,
+  ExpectedPayment,
+  CreateExpectedPaymentRequest,
+  UpdateExpectedPaymentRequest,
   RecurringItem,
   Txn,
   CreateTxnRequest,
@@ -324,11 +331,12 @@ export class BusinessService {
   }
 
   async forecast(horizon: number): Promise<ForecastResponse> {
-    const [txns, recurring, stages, settings] = await Promise.all([
+    const [txns, recurring, stages, settings, expected] = await Promise.all([
       this.repository.listTxns(),
       this.repository.listRecurring(),
       this.repository.listCrmBoard(),
       this.repository.getSettings(),
+      this.repository.listExpectedPayments(),
     ])
     const mrr = stages
       .filter((stage) => stage.isWon)
@@ -340,7 +348,199 @@ export class BusinessService {
       txns,
       recurring,
       mrr,
+      expected: expected.map((payment) => ({
+        dueDate: payment.dueDate,
+        amount: payment.amount,
+        probability: payment.probability,
+      })),
     })
+  }
+
+
+  // ------------------------------------------------ Стадия 2: аналитика
+
+  async dealHistory(dealId: string): Promise<DealHistoryEntry[]> {
+    return this.repository.listDealHistory(dealId)
+  }
+
+  /// Отчёт по воронке: входы/конверсии/среднее время в этапе + причины отказов.
+  async crmReport(): Promise<CrmReport> {
+    const stages = await this.repository.listCrmBoard()
+    const history = await this.repository.listHistoryInRange('2000-01-01', '2100-01-01')
+    const now = this.clock.now()
+
+    const durations = new Map<string, number[]>()
+    const chains = new Map<string, Array<{ stage: string; at: string }>>()
+    for (const entry of history) {
+      const chain = chains.get(entry.dealId) ?? []
+      chain.push({ stage: entry.toStage, at: entry.movedAt })
+      chains.set(entry.dealId, chain)
+    }
+    for (const chain of chains.values()) {
+      for (let index = 0; index < chain.length; index += 1) {
+        const current = chain[index]!
+        const next = chain[index + 1]
+        const end = next ? new Date(next.at).getTime() : now.getTime()
+        const days = (end - new Date(current.at).getTime()) / 86_400_000
+        const list = durations.get(current.stage) ?? []
+        list.push(days)
+        durations.set(current.stage, list)
+      }
+    }
+
+    const enteredByStage = new Map<string, number>()
+    for (const entry of history) {
+      enteredByStage.set(entry.toStage, (enteredByStage.get(entry.toStage) ?? 0) + 1)
+    }
+
+    const stageReports = stages.map((stage) => {
+      const entered = enteredByStage.get(stage.title) ?? 0
+      const movedOn = history.filter((entry) => entry.fromStage === stage.title).length
+      const stageDurations = durations.get(stage.title) ?? []
+      return {
+        title: stage.title,
+        dealsNow: stage.deals.length,
+        entered,
+        conversionPct: entered > 0 ? Math.round((movedOn / entered) * 100) : null,
+        avgDaysInStage:
+          stageDurations.length > 0
+            ? Math.round(stageDurations.reduce((sum, value) => sum + value, 0) / stageDurations.length)
+            : null,
+      }
+    })
+
+    const wonTitles = new Set(stages.filter((stage) => stage.isWon).map((stage) => stage.title))
+    const createdAtByDeal = new Map<string, string>()
+    const wonAtByDeal = new Map<string, string>()
+    for (const stage of stages) {
+      for (const deal of stage.deals) createdAtByDeal.set(deal.id, deal.createdAt)
+    }
+    for (const entry of history) {
+      if (wonTitles.has(entry.toStage) && !wonAtByDeal.has(entry.dealId)) {
+        wonAtByDeal.set(entry.dealId, entry.movedAt)
+      }
+    }
+    const cycles: number[] = []
+    for (const [dealId, wonAt] of wonAtByDeal) {
+      const createdAt = createdAtByDeal.get(dealId)
+      if (createdAt) {
+        cycles.push((new Date(wonAt).getTime() - new Date(createdAt).getTime()) / 86_400_000)
+      }
+    }
+
+    const lostDeals = stages
+      .filter((stage) => stage.isLost)
+      .flatMap((stage) => stage.deals.filter((deal) => deal.lostReason))
+    const reasonCounts = new Map<string, number>()
+    for (const deal of lostDeals) {
+      const reason = deal.lostReason ?? '—'
+      reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1)
+    }
+
+    const wonDeals = stages.filter((stage) => stage.isWon).flatMap((stage) => stage.deals)
+
+    return {
+      stages: stageReports,
+      avgCycleDays:
+        cycles.length > 0
+          ? Math.round(cycles.reduce((sum, value) => sum + value, 0) / cycles.length)
+          : null,
+      avgOneTimeAmount:
+        wonDeals.length > 0
+          ? Math.round(wonDeals.reduce((sum, deal) => sum + deal.oneTimeAmount, 0) / wonDeals.length)
+          : 0,
+      avgMonthlyAmount:
+        wonDeals.length > 0
+          ? Math.round(wonDeals.reduce((sum, deal) => sum + deal.monthlyAmount, 0) / wonDeals.length)
+          : 0,
+      lostReasons: [...reasonCounts.entries()]
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count),
+    }
+  }
+
+  /// Движение MRR по месяцам: new/churned/total на основе истории входов-выходов из won-этапов.
+  async mrrMovement(horizon: number): Promise<MrrMovement> {
+    const stages = await this.repository.listCrmBoard()
+    const wonTitles = new Set(stages.filter((stage) => stage.isWon).map((stage) => stage.title))
+    if (wonTitles.size === 0) return { months: [] }
+    const history = await this.repository.listHistoryInRange('2000-01-01', '2100-01-01')
+    const current = currentMonth(this.clock.now())
+    const months: MrrMovement['months'] = []
+    let total = 0
+    for (let offset = horizon - 1; offset >= 0; offset -= 1) {
+      const month = addMonthsLocal(current, -offset)
+      let newMrr = 0
+      let churnedMrr = 0
+      for (const entry of history) {
+        const entryMonth = entry.movedAt.slice(0, 7)
+        if (entryMonth !== month) continue
+        if (wonTitles.has(entry.toStage)) newMrr += entry.monthlyAmount
+        if (entry.fromStage !== null && wonTitles.has(entry.fromStage)) churnedMrr += entry.monthlyAmount
+      }
+      total += newMrr - churnedMrr
+      months.push({ month, newMrr, churnedMrr, totalMrr: Math.max(0, total) })
+    }
+    return { months }
+  }
+
+  /// Денежный поток по месяцам из фактических операций.
+  async cashflowHistory(horizon: number): Promise<CashflowHistory> {
+    const txns = await this.repository.listTxns()
+    const current = currentMonth(this.clock.now())
+    const months: CashflowHistory['months'] = []
+    for (let offset = horizon - 1; offset >= 0; offset -= 1) {
+      const month = addMonthsLocal(current, -offset)
+      let income = 0
+      let expense = 0
+      for (const txn of txns) {
+        if (txn.occurredOn.slice(0, 7) !== month) continue
+        if (txn.kind === 'income') income += txn.amount
+        else expense += txn.amount
+      }
+      months.push({ month, income, expense, net: income - expense })
+    }
+    return { months }
+  }
+
+  // ------------------------------------------------ Дебиторка
+
+  async expectedPayments(): Promise<{ items: ExpectedPayment[] }> {
+    const items = await this.repository.listExpectedPayments()
+    return { items }
+  }
+
+  async createExpectedPayment(input: CreateExpectedPaymentRequest): Promise<ExpectedPayment> {
+    return this.repository.createExpectedPayment(input)
+  }
+
+  async updateExpectedPayment(
+    id: string,
+    input: UpdateExpectedPaymentRequest,
+  ): Promise<ExpectedPayment> {
+    return this.repository.updateExpectedPayment(id, input)
+  }
+
+  async deleteExpectedPayment(id: string): Promise<void> {
+    await this.repository.deleteExpectedPayment(id)
+  }
+
+  /// «Получено»: создаёт фактическую операцию дохода и убирает из списка ожиданий.
+  async markExpectedReceived(id: string, createdById: string): Promise<void> {
+    const payments = await this.repository.listExpectedPayments()
+    const payment = payments.find((item) => item.id === id)
+    if (!payment) throw new BusinessFailure('not_found', 'Ожидаемое поступление не найдено')
+    await this.repository.createTxn(
+      {
+        kind: 'income',
+        amount: payment.amount,
+        occurredOn: payment.dueDate,
+        category: 'Оплата по сделке',
+        comment: payment.title,
+      },
+      createdById,
+    )
+    await this.repository.deleteExpectedPayment(id)
   }
 
   // ---------------------------------------------------------------- Дашборд

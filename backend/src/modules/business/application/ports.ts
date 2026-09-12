@@ -23,6 +23,10 @@ import type {
   CreateRecurringItemRequest,
   UpdateRecurringItemRequest,
   MonthGoal,
+  ExpectedPayment,
+  CreateExpectedPaymentRequest,
+  UpdateExpectedPaymentRequest,
+  DealHistoryEntry,
 } from '@oculus-business/contracts'
 
 /// Репозиторий бизнес-модуля: единственная точка доступа к хранилищу.
@@ -74,12 +78,18 @@ export type BusinessRepository = {
   getSettings(): Promise<BizSettings>
   saveSettings(settings: BizSettings): Promise<BizSettings>
   listHistoryInRange(from: string, to: string): Promise<Array<{
+    dealId: string
     toStage: string
     fromStage: string | null
     movedAt: string
     monthlyAmount: number
   }>>
   getGoal(month: string): Promise<MonthGoal>
+  listDealHistory(dealId: string): Promise<DealHistoryEntry[]>
+  listExpectedPayments(): Promise<ExpectedPayment[]>
+  createExpectedPayment(input: CreateExpectedPaymentRequest): Promise<ExpectedPayment>
+  updateExpectedPayment(id: string, input: UpdateExpectedPaymentRequest): Promise<ExpectedPayment>
+  deleteExpectedPayment(id: string): Promise<void>
   saveGoal(goal: MonthGoal): Promise<MonthGoal>
 }
 

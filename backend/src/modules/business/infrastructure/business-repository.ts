@@ -27,6 +27,9 @@ import type {
   UpdateTxnRequest,
   CreateRecurringItemRequest,
   UpdateRecurringItemRequest,
+  ExpectedPayment,
+  CreateExpectedPaymentRequest,
+  UpdateExpectedPaymentRequest,
 } from '@oculus-business/contracts'
 
 import type { DbClient } from '../../../db'
@@ -615,11 +618,73 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         orderBy: { movedAt: 'asc' },
       })
       return rows.map((row) => ({
+        dealId: row.dealId,
         toStage: row.toStage,
         fromStage: row.fromStage,
         movedAt: row.movedAt.toISOString(),
         monthlyAmount: row.deal.monthlyAmount,
       }))
+    },
+
+    async listDealHistory(dealId) {
+      const rows = await db.dealHistory.findMany({
+        where: { dealId },
+        orderBy: { movedAt: 'desc' },
+      })
+      return rows.map((row) => ({
+        id: row.id,
+        fromStage: row.fromStage,
+        toStage: row.toStage,
+        movedAt: row.movedAt.toISOString(),
+      }))
+    },
+
+    async listExpectedPayments() {
+      const rows = await db.expectedPayment.findMany({ orderBy: { dueDate: 'asc' } })
+      return rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        amount: row.amount,
+        dueDate: toDateOnly(row.dueDate) ?? '',
+        probability: row.probability,
+        dealId: row.dealId,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      }))
+    },
+
+    async createExpectedPayment(input) {
+      return guarded(async () => {
+        const row = await db.expectedPayment.create({
+          data: {
+            title: input.title,
+            amount: input.amount,
+            dueDate: fromDateOnly(input.dueDate),
+            probability: input.probability,
+            dealId: input.dealId ?? null,
+          },
+        })
+        return mapExpected(row)
+      })
+    },
+
+    async updateExpectedPayment(id, input) {
+      return guarded(async () => {
+        const data: Record<string, unknown> = {}
+        if ('title' in input) data.title = input.title
+        if ('amount' in input) data.amount = input.amount
+        if ('dueDate' in input && input.dueDate !== undefined) data.dueDate = fromDateOnly(input.dueDate)
+        if ('probability' in input && input.probability !== undefined) data.probability = input.probability
+        if ('dealId' in input) data.dealId = input.dealId ?? null
+        const row = await db.expectedPayment.update({ where: { id }, data })
+        return mapExpected(row)
+      })
+    },
+
+    async deleteExpectedPayment(id) {
+      await guarded(async () => {
+        await db.expectedPayment.delete({ where: { id } })
+      })
     },
 
     async getGoal(month) {
@@ -654,5 +719,18 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         openingBalance: row.openingBalance,
       } satisfies BizSettings
     },
+  }
+}
+
+function mapExpected(row: Awaited<ReturnType<DbClient['expectedPayment']['findUniqueOrThrow']>>): ExpectedPayment {
+  return {
+    id: row.id,
+    title: row.title,
+    amount: row.amount,
+    dueDate: toDateOnly(row.dueDate) ?? '',
+    probability: row.probability,
+    dealId: row.dealId,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   }
 }

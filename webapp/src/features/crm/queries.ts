@@ -1,4 +1,5 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { dealHistoryResponseSchema } from '@oculus-business/contracts'
 import type { CreateCrmStageRequest, CreateDealRequest, UpdateCrmStageRequest, UpdateDealRequest } from '@oculus-business/contracts'
 
 import { useAuth } from '@/features/auth'
@@ -132,5 +133,17 @@ export function useDeleteStageMutation() {
   return useMutation({
     mutationFn: (id: string) => deleteStage(transport, id),
     onSuccess: invalidate,
+  })
+}
+
+export function useDealHistoryQuery(dealId: string | null) {
+  const { transport } = useAuth()
+  return useQuery({
+    queryKey: [...crmQueryKeys.all, 'history', dealId ?? 'none'],
+    queryFn: ({ signal }) =>
+      transport.request(`/api/crm/deals/${dealId}/history`, dealHistoryResponseSchema, {
+        signal,
+      }),
+    enabled: dealId !== null,
   })
 }

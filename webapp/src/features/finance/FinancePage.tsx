@@ -7,6 +7,7 @@ import type { Txn } from '@oculus-business/contracts'
 import { currentMonthKey, formatMoney, monthLabel } from '@/platform/format'
 
 import { useSummaryQuery, useTxnsQuery } from './queries'
+import { FinanceAnalytics } from './FinanceAnalytics'
 import { MonthGoalCard } from './MonthGoalCard'
 import { TxnSheet } from './TxnSheet'
 
@@ -235,6 +236,10 @@ export function FinancePage() {
       >
         +
       </Button>
+
+      <div className="grid gap-4 lg:col-span-2">
+        <FinanceAnalytics />
+      </div>
 
       <TxnSheet
         onClose={() => {

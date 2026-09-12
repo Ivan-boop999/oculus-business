@@ -352,6 +352,7 @@ export const forecastMonthSchema = z
     recurringIncome: z.number().int(),
     mrrIncome: z.number().int(),
     oneTimeIncome: z.number().int(),
+    expectedIncome: z.number().int(),
     recurringExpense: z.number().int(),
     oneTimeExpense: z.number().int(),
     plannedIncome: z.number().int(),
@@ -428,6 +429,101 @@ export const dashboardResponseSchema = z
   })
   .strict()
 
+
+// =============================================================================
+// Стадия 2: аналитика — история сделки, отчёт воронки, движение MRR, поток, дебиторка
+// =============================================================================
+
+export const dealHistoryEntrySchema = z
+  .object({
+    id: z.string().uuid(),
+    fromStage: z.string().nullable(),
+    toStage: z.string(),
+    movedAt: z.string().datetime(),
+  })
+  .strict()
+
+export const dealHistoryResponseSchema = z
+  .object({ entries: z.array(dealHistoryEntrySchema) })
+  .strict()
+
+export const crmStageReportSchema = z
+  .object({
+    title: z.string(),
+    dealsNow: z.number().int(),
+    entered: z.number().int(),
+    conversionPct: z.number().nullable(),
+    avgDaysInStage: z.number().nullable(),
+  })
+  .strict()
+
+export const crmReportResponseSchema = z
+  .object({
+    stages: z.array(crmStageReportSchema),
+    avgCycleDays: z.number().nullable(),
+    avgOneTimeAmount: z.number().int(),
+    avgMonthlyAmount: z.number().int(),
+    lostReasons: z.array(z.object({ reason: z.string(), count: z.number().int() }).strict()),
+  })
+  .strict()
+
+export const mrrMovementMonthSchema = z
+  .object({
+    month: z.string().regex(/^d{4}-d{2}$/),
+    newMrr: z.number().int(),
+    churnedMrr: z.number().int(),
+    totalMrr: z.number().int(),
+  })
+  .strict()
+
+export const mrrMovementResponseSchema = z
+  .object({ months: z.array(mrrMovementMonthSchema) })
+  .strict()
+
+export const cashflowMonthSchema = z
+  .object({
+    month: z.string().regex(/^d{4}-d{2}$/),
+    income: z.number().int(),
+    expense: z.number().int(),
+    net: z.number().int(),
+  })
+  .strict()
+
+export const cashflowHistoryResponseSchema = z
+  .object({ months: z.array(cashflowMonthSchema) })
+  .strict()
+
+export const expectedPaymentSchema = z
+  .object({
+    id: z.string().uuid(),
+    title: z.string(),
+    amount: z.number().int(),
+    dueDate: dateOnlySchema,
+    probability: z.number().int().min(0).max(100),
+    dealId: z.string().uuid().nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict()
+
+export const createExpectedPaymentRequestSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160),
+    amount: z.number().int().min(1).max(1_000_000_000),
+    dueDate: dateOnlySchema,
+    probability: z.number().int().min(0).max(100).default(80),
+    dealId: z.string().uuid().nullable().optional(),
+  })
+  .strict()
+
+export const updateExpectedPaymentRequestSchema =
+  createExpectedPaymentRequestSchema.partial().strict()
+
+export const expectedPaymentResponseSchema = z.object({ payment: expectedPaymentSchema }).strict()
+export const expectedPaymentsResponseSchema = z
+  .object({ items: z.array(expectedPaymentSchema) })
+  .strict()
+
 // =============================================================================
 // Типы
 // =============================================================================
@@ -460,6 +556,13 @@ export type CreateRecurringItemRequest = z.infer<typeof createRecurringItemReque
 export type UpdateRecurringItemRequest = z.infer<typeof updateRecurringItemRequestSchema>
 export type BizSettings = z.infer<typeof bizSettingsSchema>
 export type MonthGoal = z.infer<typeof monthGoalSchema>
+export type DealHistoryEntry = z.infer<typeof dealHistoryEntrySchema>
+export type CrmReport = z.infer<typeof crmReportResponseSchema>
+export type MrrMovement = z.infer<typeof mrrMovementResponseSchema>
+export type CashflowHistory = z.infer<typeof cashflowHistoryResponseSchema>
+export type ExpectedPayment = z.infer<typeof expectedPaymentSchema>
+export type CreateExpectedPaymentRequest = z.infer<typeof createExpectedPaymentRequestSchema>
+export type UpdateExpectedPaymentRequest = z.infer<typeof updateExpectedPaymentRequestSchema>
 export type FinanceSummary = z.infer<typeof financeSummaryResponseSchema>
 export type ForecastMonth = z.infer<typeof forecastMonthSchema>
 export type ForecastResponse = z.infer<typeof forecastResponseSchema>

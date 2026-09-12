@@ -8,8 +8,16 @@ import {
   createDevTaskCommentRequestSchema,
   createDevTaskRequestSchema,
   createRecurringItemRequestSchema,
+  cashflowHistoryResponseSchema,
+  createExpectedPaymentRequestSchema,
   createTxnRequestSchema,
   crmBoardResponseSchema,
+  crmReportResponseSchema,
+  dealHistoryResponseSchema,
+  expectedPaymentResponseSchema,
+  expectedPaymentsResponseSchema,
+  mrrMovementResponseSchema,
+  updateExpectedPaymentRequestSchema,
   crmStageResponseSchema,
   dashboardResponseSchema,
   dealCommentsResponseSchema,
@@ -471,6 +479,108 @@ const forecastRoute = createRoute({
   },
 })
 
+
+const dealHistoryRoute = createRoute({
+  method: 'get',
+  path: '/deals/{id}/history',
+  security: bearerSecurity,
+  request: { params: idParamSchema },
+  responses: {
+    200: { content: json(dealHistoryResponseSchema), description: 'Deal stage history' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const crmReportRoute = createRoute({
+  method: 'get',
+  path: '/report',
+  security: bearerSecurity,
+  responses: {
+    200: { content: json(crmReportResponseSchema), description: 'Pipeline funnel report' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const mrrMovementRoute = createRoute({
+  method: 'get',
+  path: '/mrr-movement',
+  security: bearerSecurity,
+  request: { query: forecastQuerySchema },
+  responses: {
+    200: { content: json(mrrMovementResponseSchema), description: 'MRR movement by month' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const cashflowHistoryRoute = createRoute({
+  method: 'get',
+  path: '/history',
+  security: bearerSecurity,
+  request: { query: forecastQuerySchema },
+  responses: {
+    200: { content: json(cashflowHistoryResponseSchema), description: 'Cash flow by month' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const expectedRoute = createRoute({
+  method: 'get',
+  path: '/expected',
+  security: bearerSecurity,
+  responses: {
+    200: { content: json(expectedPaymentsResponseSchema), description: 'Expected payments' },
+    401: { content: errorContent, description: 'Authentication required' },
+  },
+})
+
+const createExpectedRoute = createRoute({
+  method: 'post',
+  path: '/expected',
+  security: bearerSecurity,
+  request: { body: { content: json(createExpectedPaymentRequestSchema) } },
+  responses: {
+    201: { content: json(expectedPaymentResponseSchema), description: 'Created expected payment' },
+    ...standardErrors,
+  },
+})
+
+const updateExpectedRoute = createRoute({
+  method: 'patch',
+  path: '/expected/{id}',
+  security: bearerSecurity,
+  request: {
+    params: idParamSchema,
+    body: { content: json(updateExpectedPaymentRequestSchema) },
+  },
+  responses: {
+    200: { content: json(expectedPaymentResponseSchema), description: 'Updated expected payment' },
+    ...standardErrors,
+  },
+})
+
+const deleteExpectedRoute = createRoute({
+  method: 'delete',
+  path: '/expected/{id}',
+  security: bearerSecurity,
+  request: { params: idParamSchema },
+  responses: {
+    204: { description: 'Deleted' },
+    401: { content: errorContent, description: 'Authentication required' },
+    404: { content: errorContent, description: 'Not found' },
+  },
+})
+
+const expectedReceivedRoute = createRoute({
+  method: 'post',
+  path: '/expected/{id}/received',
+  security: bearerSecurity,
+  request: { params: idParamSchema },
+  responses: {
+    204: { description: 'Converted to income transaction' },
+    ...standardErrors,
+  },
+})
+
 const dashboardRoute = createRoute({
   method: 'get',
   path: '/',
@@ -547,6 +657,15 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     return c.body(null, 204)
   })
 
+  crm.openapi(dealHistoryRoute, async (c) => {
+    return c.json(
+      { entries: await executeBusiness(() => service.dealHistory(c.req.valid('param').id)) },
+      200,
+    )
+  })
+  crm.openapi(crmReportRoute, async (c) => {
+    return c.json(await executeBusiness(() => service.crmReport()), 200)
+  })
   dev.openapi(devBoardRoute, async (c) => {
     return c.json(await executeBusiness(() => service.devBoard()), 200)
   })
@@ -657,6 +776,35 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
   finance.openapi(saveGoalRoute, async (c) => {
     const goal = await executeBusiness(() => service.saveGoal(c.req.valid('json')))
     return c.json({ goal }, 200)
+  })
+  finance.openapi(mrrMovementRoute, async (c) => {
+    const { months } = c.req.valid('query')
+    return c.json(await executeBusiness(() => service.mrrMovement(months)), 200)
+  })
+  finance.openapi(cashflowHistoryRoute, async (c) => {
+    const { months } = c.req.valid('query')
+    return c.json(await executeBusiness(() => service.cashflowHistory(months)), 200)
+  })
+  finance.openapi(expectedRoute, async (c) => {
+    return c.json(await executeBusiness(() => service.expectedPayments()), 200)
+  })
+  finance.openapi(createExpectedRoute, async (c) => {
+    const payment = await executeBusiness(() => service.createExpectedPayment(c.req.valid('json')))
+    return c.json({ payment }, 201)
+  })
+  finance.openapi(updateExpectedRoute, async (c) => {
+    const payment = await executeBusiness(() =>
+      service.updateExpectedPayment(c.req.valid('param').id, c.req.valid('json')),
+    )
+    return c.json({ payment }, 200)
+  })
+  finance.openapi(deleteExpectedRoute, async (c) => {
+    await executeBusiness(() => service.deleteExpectedPayment(c.req.valid('param').id))
+    return c.body(null, 204)
+  })
+  finance.openapi(expectedReceivedRoute, async (c) => {
+    await executeBusiness(() => service.markExpectedReceived(c.req.valid('param').id, c.var.user.id))
+    return c.body(null, 204)
   })
   finance.openapi(forecastRoute, async (c) => {
     const { months } = c.req.valid('query')

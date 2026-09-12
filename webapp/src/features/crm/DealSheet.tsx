@@ -21,6 +21,7 @@ import {
   useAddDealCommentMutation,
   useCreateDealMutation,
   useDealCommentsQuery,
+  useDealHistoryQuery,
   useDeleteDealMutation,
   useMoveDealMutation,
   useUpdateDealMutation,
@@ -133,6 +134,7 @@ export function DealSheet({
   const moveDeal = useMoveDealMutation()
   const deleteDeal = useDeleteDealMutation()
   const comments = useDealCommentsQuery(open && deal !== null ? deal.id : null)
+  const history = useDealHistoryQuery(open && deal !== null ? deal.id : null)
   const addComment = useAddDealCommentMutation(deal?.id ?? '')
 
   const set = (patch: Partial<DealFormState>) => setForm((prev) => ({ ...prev, ...patch }))
@@ -400,6 +402,30 @@ export function DealSheet({
               </Button>
             )}
           </div>
+
+          {deal && history.data !== undefined && history.data.entries.length > 0 && (
+            <div className="grid gap-1.5 border-t pt-3">
+              <h3 className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+                История
+              </h3>
+              <div className="grid gap-1">
+                {history.data.entries.map((entry) => (
+                  <p className="text-[11px] text-muted-foreground" key={entry.id}>
+                    <span className="tabular-nums">
+                      {new Date(entry.movedAt).toLocaleDateString('ru-RU', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>{' '}
+                    — {entry.fromStage ? `${entry.fromStage} → ` : ''}
+                    <span className="text-[#A5B4FC]">{entry.toStage}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
 
           {deal && (
             <div className="grid gap-2 border-t pt-3">

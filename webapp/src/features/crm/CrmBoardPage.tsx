@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from 'react'
+import { Link } from '@tanstack/react-router'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -161,6 +162,11 @@ export function CrmBoardPage() {
                     {deal.contactName && <span>{deal.contactName}</span>}
                     {deal.source && <span>· {deal.source}</span>}
                     {deal.commentsCount > 0 && <span>· 💬 {deal.commentsCount}</span>}
+                    {deal.lastStageChangeAt && (
+                      <span className="tabular-nums">
+                        · {daysSince(deal.lastStageChangeAt)} дн. в этапе
+                      </span>
+                    )}
                   </div>
                   {deal.nextActionAt && (
                     <div
@@ -260,6 +266,12 @@ function BoardHeader({
       >
         {mineOnly ? 'Мои сделки' : 'Все / Мои'}
       </button>
+      <Link
+        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-[#6366F1]/35 hover:text-white"
+        to="/app/crm/report"
+      >
+        Отчёт
+      </Link>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">в работе: {activeCount}</Badge>
       <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">пайплайн: {formatMoneyShort(pipelineMonthly)}/мес</Badge>
       <Badge
@@ -324,4 +336,8 @@ function StageMenu({ stage, onDone }: { stage: StageWithDeals; onDone: () => voi
       </button>
     </div>
   )
+}
+
+function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
 }

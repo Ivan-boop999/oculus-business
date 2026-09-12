@@ -23,7 +23,7 @@ import {
 import { homePathForRole, safeReturnPath } from '@/features/navigation'
 import { UserProfile, UserSettings } from '@/features/users'
 import { DashboardPage } from '@/features/dashboard'
-import { CrmBoardPage as CrmBoardScreen } from '@/features/crm'
+import { CrmBoardPage as CrmBoardScreen, CrmReportPage as CrmReportScreen } from '@/features/crm'
 import { FinancePage as FinanceScreen, ForecastPage as ForecastScreen, RecurringPage as RecurringScreen } from '@/features/finance'
 import { DevBoardPage as DevBoardScreen } from '@/features/devboard'
 
@@ -108,6 +108,10 @@ export function UserSettingsPage() {
 
 export function CrmBoardPage() {
   return <CrmBoardScreen />
+}
+
+export function CrmReportPage() {
+  return <CrmReportScreen />
 }
 
 export function FinancePage() {
