@@ -66,13 +66,15 @@ export function DevBoardPage() {
 
   return (
     <div className="grid gap-3">
-      <h1 className="text-lg font-semibold tracking-tight">Доработки и баги</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-white lg:text-2xl">Доработки и баги</h1>
 
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:gap-4 lg:px-0">
         {columns.map((column) => (
           <section
-            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 lg:w-80 ${
-              dragOverColumnId === column.id ? 'border-primary' : ''
+            className={`flex w-72 shrink-0 flex-col rounded-2xl border bg-gradient-to-b from-white/[0.04] to-white/[0.01] transition-colors lg:w-80 ${
+              dragOverColumnId === column.id
+                ? 'border-[#818CF8] shadow-[0_0_32px_-6px_rgba(99,102,241,0.5)]'
+                : 'border-white/6'
             }`}
             key={column.id}
             onDragOver={(event) => {
@@ -84,7 +86,7 @@ export function DevBoardPage() {
           >
             <header className="flex items-center justify-between gap-2 px-3 pt-3">
               <div className="flex min-w-0 items-center gap-2">
-                <h2 className="truncate text-sm font-semibold">{column.title}</h2>
+                <h2 className="truncate text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{column.title}</h2>
               </div>
               <div className="flex items-center gap-1">
                 <Badge variant="secondary">{column.tasks.length}</Badge>
@@ -105,7 +107,7 @@ export function DevBoardPage() {
             <div className="flex flex-1 flex-col gap-2 p-2">
               {column.tasks.map((task) => (
                 <article
-                  className="cursor-pointer rounded-lg border bg-background p-3 shadow-xs transition-shadow hover:shadow-sm active:scale-[0.99]"
+                  className="cursor-pointer rounded-xl border border-white/8 bg-[#101724] p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#6366F1]/40 hover:shadow-[0_8px_28px_-12px_rgba(99,102,241,0.45)] active:scale-[0.99]"
                   draggable
                   key={task.id}
                   onClick={() => setSelectedTask(task)}

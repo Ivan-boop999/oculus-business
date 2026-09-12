@@ -30,7 +30,7 @@ export function RecurringPage() {
   return (
     <div className="grid gap-4">
       <div className="flex items-center gap-2">
-        <h1 className="mr-auto text-lg font-semibold tracking-tight">Регулярные платежи</h1>
+        <h1 className="mr-auto text-xl font-semibold tracking-tight text-white lg:text-2xl">Регулярные платежи</h1>
       </div>
       <p className="text-sm text-muted-foreground">
         Ежемесячные доходы и расходы. Попадают в прогноз каждого месяца, пока активны.
@@ -76,7 +76,7 @@ export function RecurringPage() {
 function Row({ item, onSelect }: { item: RecurringItem; onSelect: () => void }) {
   return (
     <button
-      className="flex items-center gap-3 rounded-xl border bg-background p-3 text-left transition-colors hover:bg-muted/40"
+      className="flex items-center gap-3 rounded-xl border border-white/6 bg-[#101724] p-3 text-left transition-all hover:border-[#6366F1]/35"
       onClick={onSelect}
     >
       <span className="min-w-0 flex-1">
@@ -90,8 +90,8 @@ function Row({ item, onSelect }: { item: RecurringItem; onSelect: () => void }) 
       <span
         className={`shrink-0 text-sm font-semibold ${
           item.kind === 'income'
-            ? 'text-emerald-600 dark:text-emerald-400'
-            : 'text-red-600 dark:text-red-400'
+            ? 'text-[#34D399]'
+            : 'text-[#FB7185]'
         }`}
       >
         {item.kind === 'income' ? '+' : '−'}
@@ -111,8 +111,8 @@ function BalanceForm({
   const [date, setDate] = useState(initial.openingBalanceDate)
 
   return (
-    <div className="grid gap-2 rounded-xl border p-3">
-      <h2 className="text-sm font-semibold">Стартовый остаток</h2>
+    <div className="grid gap-2 rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.045] to-white/[0.015] p-4">
+      <h2 className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">Стартовый остаток</h2>
       <p className="text-xs text-muted-foreground">
         Сколько денег было на счетах на эту дату. Баланс = стартовый остаток + все операции с этой
         даты.
@@ -335,7 +335,7 @@ function RecurringSheet({
 function Section({ children, title }: { children: ReactNode; title: string }) {
   return (
     <section className="grid gap-2">
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <h2 className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">{title}</h2>
       {children}
     </section>
   )

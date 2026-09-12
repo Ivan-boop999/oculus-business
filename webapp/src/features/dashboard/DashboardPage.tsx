@@ -1,12 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  Coins01Icon,
+  HandshakeIcon,
+  TimerIcon,
+} from '@hugeicons/core-free-icons'
 
 import { dashboardResponseSchema } from '@oculus-business/contracts'
+import { KpiCard, MoneyBadge, SectionCard } from '@/components/dashboard-ui'
 import { useAuth } from '@/features/auth'
-import { dateLabel, formatMoney, RUNWAY_MODE_LABELS } from '@/platform/format'
+import { dateLabel, formatMoney, formatMoneyShort, RUNWAY_MODE_LABELS } from '@/platform/format'
 
-/// Главный экран: здоровье бизнеса одним взглядом — деньги, воронка, действия, задачи.
-/// Телефон — одна колонка, ПК — широкая сетка.
+/// Главный экран — «командный центр» в стиле OCULUS: hero-баланс, KPI-плитки
+/// со свечением, воронка с барами и лента ближайших действий.
 export function DashboardPage() {
   const { transport } = useAuth()
   const dashboard = useQuery({
@@ -15,149 +24,201 @@ export function DashboardPage() {
   })
 
   if (dashboard.isPending) {
-    return <p className="py-16 text-center text-sm text-muted-foreground">Загружаем…</p>
+    return (
+      <div className="grid gap-4">
+        <div className="h-40 animate-pulse rounded-2xl border border-white/6 bg-white/[0.03]" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div className="h-28 animate-pulse rounded-2xl border border-white/6 bg-white/[0.03]" key={i} />
+          ))}
+        </div>
+      </div>
+    )
   }
   if (dashboard.isError || !dashboard.data) {
     return (
-      <div className="grid gap-3 py-12 text-center">
-        <p className="text-sm text-destructive">Не удалось загрузить сводку</p>
+      <SectionCard className="py-10 text-center">
+        <p className="text-sm text-[#FB7185]">Не удалось загрузить сводку</p>
         <button
-          className="text-sm text-primary underline"
+          className="mt-2 text-sm text-[#A5B4FC] underline underline-offset-4"
           onClick={() => void dashboard.refetch()}
         >
           Повторить
         </button>
-      </div>
+      </SectionCard>
     )
   }
 
   const data = dashboard.data
+  const healthy = ['positive', 'comfortable', 'stable'].includes(data.finance.mode)
+  const monthTotal = data.finance.monthIncome + data.finance.monthExpense
+  const incomeShare = monthTotal > 0 ? (data.finance.monthIncome / monthTotal) * 100 : 0
 
   return (
     <div className="grid gap-4">
-      <h1 className="text-lg font-semibold tracking-tight lg:text-xl">Обзор</h1>
+      {/* ------------------------------------------------ Hero: баланс и здоровье */}
+      <section className="relative overflow-hidden rounded-2xl border border-[#6366F1]/20 bg-gradient-to-br from-[#6366F1]/[0.14] via-white/[0.03] to-transparent p-5">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-24 -right-16 size-64 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.25),transparent_65%)] blur-2xl"
+        />
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold tracking-[0.12em] text-[#A5B4FC] uppercase">
+              Деньги на счетах
+            </p>
+            <p className="mt-1.5 text-4xl font-bold tracking-tight text-white tabular-nums lg:text-5xl">
+              {formatMoney(data.finance.balance)}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <MoneyBadge kind={healthy ? 'income' : 'warning'}>
+                <HugeiconsIcon className="size-3" icon={TimerIcon} strokeWidth={2} />
+                runway {data.finance.runwayMonths === null ? '∞' : `${data.finance.runwayMonths} мес`}
+              </MoneyBadge>
+              <span className="text-[11px] text-muted-foreground">
+                {RUNWAY_MODE_LABELS[data.finance.mode] ?? data.finance.mode}
+              </span>
+            </div>
+          </div>
+          <div className="min-w-56">
+            <div className="mb-1.5 flex justify-between text-[11px] text-muted-foreground">
+              <span>
+                <span className="text-[#34D399]">доход</span> /{' '}
+                <span className="text-[#FB7185]">расход</span> месяца
+              </span>
+            </div>
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-white/6">
+              <div
+                className="h-full bg-gradient-to-r from-[#34D399]/70 to-[#34D399] shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                style={{ width: `${incomeShare}%` }}
+              />
+              <div
+                className="h-full bg-gradient-to-r from-[#F43F5E]/70 to-[#F43F5E]/50"
+                style={{ width: `${100 - incomeShare}%` }}
+              />
+            </div>
+            <div className="mt-2 flex gap-3 text-[12px] tabular-nums">
+              <span className="text-[#34D399]">+{formatMoneyShort(data.finance.monthIncome)}</span>
+              <span className="text-[#FB7185]">−{formatMoneyShort(data.finance.monthExpense)}</span>
+              <span className="ml-auto text-white">
+                {formatMoneyShort(data.finance.monthNet)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <MetricTile label="Баланс" value={formatMoney(data.finance.balance)} />
-        <MetricTile
-          label="MRR (подписки)"
-          tone="text-emerald-600 dark:text-emerald-400"
-          value={`${formatMoney(data.crm.mrr)}/мес`}
+      {/* ------------------------------------------------ KPI-плитки */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard
+          icon={<HugeiconsIcon className="size-4" icon={Coins01Icon} strokeWidth={2} />}
+          label="MRR · подписки"
+          sub="с действующих клиентов"
+          tone="positive"
+          value={`${formatMoneyShort(data.crm.mrr)}/мес`}
         />
-        <MetricTile
-          label="За месяц: доход / расход"
-          value={`${formatMoney(data.finance.monthIncome)} / ${formatMoney(
-            data.finance.monthExpense,
-          )}`}
+        <KpiCard
+          icon={<HugeiconsIcon className="size-4" icon={HandshakeIcon} strokeWidth={2} />}
+          label="Сделки в работе"
+          sub={`${formatMoneyShort(data.crm.pipelineMonthly)}/мес в пайплайне`}
+          tone="accent"
+          value={String(data.crm.activeDeals)}
         />
-        <MetricTile
-          label="Runway"
-          sub={RUNWAY_MODE_LABELS[data.finance.mode] ?? data.finance.mode}
-          tone={
-            ['positive', 'comfortable', 'stable'].includes(data.finance.mode)
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-amber-600 dark:text-amber-400'
-          }
-          value={data.finance.runwayMonths === null ? '∞' : `${data.finance.runwayMonths} мес`}
+        <KpiCard
+          icon={<HugeiconsIcon className="size-4" icon={ArrowUp01Icon} strokeWidth={2} />}
+          label="Разовый пайплайн"
+          sub="пилоты и внедрения"
+          value={formatMoneyShort(data.crm.pipelineOneTime)}
+        />
+        <KpiCard
+          icon={<HugeiconsIcon className="size-4" icon={ArrowDown01Icon} strokeWidth={2} />}
+          label="Клиентов действует"
+          sub="на этапе «выиграно»"
+          tone="positive"
+          value={String(data.crm.wonDeals)}
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
-        <div className="rounded-xl border p-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold">Воронка</h2>
-            <Link className="text-xs text-primary" to="/app/crm">
-              открыть доску →
+      <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
+        {/* ------------------------------------------------ Следующие действия */}
+        <SectionCard
+          action={
+            <Link className="text-[11px] text-[#A5B4FC] hover:text-white" to="/app/crm">
+              доску →
             </Link>
-          </div>
-          <div className="mt-2 grid gap-2 lg:grid-cols-1">
-            <Stat label="в работе" value={String(data.crm.activeDeals)} />
-            <Stat
-              label="действующих клиентов"
-              tone="text-emerald-600 dark:text-emerald-400"
-              value={String(data.crm.wonDeals)}
-            />
-            <Stat label="пайплайн/мес" value={formatMoney(data.crm.pipelineMonthly)} />
-            <Stat label="разовый пайплайн" value={formatMoney(data.crm.pipelineOneTime)} />
-          </div>
-        </div>
-
-        <div className="rounded-xl border p-3 lg:col-span-2">
-          <h2 className="text-sm font-semibold">Следующие действия</h2>
-          <div className="mt-2 grid gap-2">
+          }
+          className="lg:col-span-3"
+          title="Следующие действия"
+        >
+          <div className="grid gap-2">
             {data.nextActions.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Нет запланированных действий — откройте сделку и задайте «следующее действие».
+              <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-xs text-muted-foreground">
+                Нет запланированных действий — откройте сделку и задайте «следующее действие»
               </p>
             )}
             {data.nextActions.map((action) => (
               <Link
-                className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm transition-colors hover:bg-muted"
+                className="group flex items-center gap-3 rounded-xl border border-white/6 bg-white/[0.025] px-3 py-2.5 transition-all hover:border-[#6366F1]/35 hover:bg-[rgba(99,102,241,0.07)]"
                 key={action.dealId}
                 to="/app/crm"
               >
-                <span className="grid shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                <span className="grid shrink-0 rounded-md border border-[#6366F1]/30 bg-[#6366F1]/12 px-2 py-1 text-[11px] font-semibold text-[#A5B4FC] tabular-nums">
                   {action.nextActionAt ? dateLabel(action.nextActionAt) : '—'}
                 </span>
-                <span className="min-w-0 flex-1 truncate">
-                  <span className="font-medium">{action.dealTitle}</span>
-                  {action.nextAction ? ` — ${action.nextAction}` : ''}
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  <span className="font-medium text-white">{action.dealTitle}</span>
+                  {action.nextAction ? (
+                    <span className="text-muted-foreground"> — {action.nextAction}</span>
+                  ) : null}
                 </span>
-                <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:block">
+                <span className="hidden shrink-0 rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground sm:block">
                   {action.stageTitle}
                 </span>
               </Link>
             ))}
           </div>
-        </div>
-      </div>
+        </SectionCard>
 
-      <div className="rounded-xl border p-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold">Продукт</h2>
-          <Link className="text-xs text-primary" to="/app/tasks">
-            доска доработок →
-          </Link>
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-sm lg:max-w-md">
-          <Stat label="открыто" value={String(data.dev.openTasks)} />
-          <Stat label="в работе" value={String(data.dev.inProgressTasks)} />
-          <Stat label="срочных багов" tone="text-red-600 dark:text-red-400" value={String(data.dev.urgentBugs)} />
-        </div>
+        {/* ------------------------------------------------ Продукт */}
+        <SectionCard
+          action={
+            <Link className="text-[11px] text-[#A5B4FC] hover:text-white" to="/app/tasks">
+              доску →
+            </Link>
+          }
+          className="lg:col-span-2"
+          title="Продукт"
+        >
+          <div className="grid gap-2.5">
+            <ProductRow label="открыто задач" value={data.dev.openTasks} />
+            <ProductRow label="в работе" value={data.dev.inProgressTasks} />
+            <ProductRow label="срочных багов" tone="negative" value={data.dev.urgentBugs} />
+          </div>
+        </SectionCard>
       </div>
     </div>
   )
 }
 
-function Stat({ label, tone, value }: { label: string; tone?: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2 lg:justify-start">
-      <span
-        className={`text-base font-semibold tabular-nums lg:w-28 lg:text-right ${tone ?? ''}`}
-      >
-        {value}
-      </span>
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-    </div>
-  )
-}
-
-function MetricTile({
+function ProductRow({
   label,
-  sub,
-  tone,
+  tone = 'default',
   value,
 }: {
   label: string
-  sub?: string
-  tone?: string
-  value: string
+  tone?: 'default' | 'negative'
+  value: number
 }) {
   return (
-    <div className="rounded-xl border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-base font-semibold ${tone ?? ''}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[13px] text-muted-foreground">{label}</span>
+      <span
+        className={`text-lg font-bold tabular-nums ${
+          tone === 'negative' && value > 0 ? 'text-[#FB7185]' : 'text-white'
+        }`}
+      >
+        {value}
+      </span>
     </div>
   )
 }

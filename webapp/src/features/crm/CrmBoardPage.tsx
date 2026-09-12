@@ -58,8 +58,10 @@ export function CrmBoardPage() {
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:gap-4 lg:px-0">
         {stages.map((stage) => (
           <section
-            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 lg:w-80 ${
-              dragOverStageId === stage.id ? 'border-primary' : ''
+            className={`flex w-72 shrink-0 flex-col rounded-2xl border bg-gradient-to-b from-white/[0.04] to-white/[0.01] transition-colors lg:w-80 ${
+              dragOverStageId === stage.id
+                ? 'border-[#818CF8] shadow-[0_0_32px_-6px_rgba(99,102,241,0.5)]'
+                : 'border-white/6'
             }`}
             key={stage.id}
             onDragOver={(event) => {
@@ -71,7 +73,7 @@ export function CrmBoardPage() {
           >
             <header className="flex items-center justify-between gap-2 px-3 pt-3">
               <div className="flex min-w-0 items-center gap-2">
-                <h2 className="truncate text-sm font-semibold">{stage.title}</h2>
+                <h2 className="truncate text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{stage.title}</h2>
                 {stage.isWon && <Badge variant="secondary">выиграна</Badge>}
                 {stage.isLost && <Badge variant="outline">отказ</Badge>}
               </div>
@@ -96,7 +98,7 @@ export function CrmBoardPage() {
             <div className="flex flex-1 flex-col gap-2 p-2">
               {stage.deals.map((deal) => (
                 <article
-                  className="cursor-pointer rounded-lg border bg-background p-3 shadow-xs transition-shadow hover:shadow-sm active:scale-[0.99]"
+                  className="cursor-pointer rounded-xl border border-white/8 bg-[#101724] p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#6366F1]/40 hover:shadow-[0_8px_28px_-12px_rgba(99,102,241,0.45)] active:scale-[0.99]"
                   draggable
                   key={deal.id}
                   onClick={() => setSelectedDeal(deal)}
@@ -111,12 +113,12 @@ export function CrmBoardPage() {
                   {(deal.monthlyAmount > 0 || deal.oneTimeAmount > 0) && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {deal.monthlyAmount > 0 && (
-                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        <Badge className="border-[#34D399]/25 bg-[#34D399]/10 text-[#34D399]">
                           {formatMoneyShort(deal.monthlyAmount)}/мес
                         </Badge>
                       )}
                       {deal.oneTimeAmount > 0 && (
-                        <Badge variant="secondary">
+                        <Badge className="border-white/10 bg-white/5 text-[#C9D0E2]">
                           {formatMoneyShort(deal.oneTimeAmount)} разово
                         </Badge>
                       )}
@@ -128,7 +130,7 @@ export function CrmBoardPage() {
                     {deal.commentsCount > 0 && <span>· 💬 {deal.commentsCount}</span>}
                   </div>
                   {deal.nextActionAt && (
-                    <div className="mt-2 rounded-md bg-primary/5 px-2 py-1 text-xs text-primary">
+                    <div className="mt-2 rounded-lg border border-[#6366F1]/25 bg-[#6366F1]/10 px-2 py-1 text-xs text-[#A5B4FC]">
                       ⏭ {dateLabel(deal.nextActionAt)}
                       {deal.nextAction ? ` — ${deal.nextAction}` : ''}
                     </div>
@@ -193,10 +195,10 @@ function BoardHeader({ stages }: { stages: StageWithDeals[] }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <h1 className="mr-auto text-lg font-semibold tracking-tight">Сделки</h1>
-      <Badge variant="secondary">в работе: {activeCount}</Badge>
-      <Badge variant="secondary">пайплайн: {formatMoneyShort(pipelineMonthly)}/мес</Badge>
-      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+      <h1 className="mr-auto text-xl font-semibold tracking-tight text-white lg:text-2xl">Сделки</h1>
+      <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">в работе: {activeCount}</Badge>
+      <Badge variant="secondary" className="border-white/10 bg-white/5 text-[#C9D0E2]">пайплайн: {formatMoneyShort(pipelineMonthly)}/мес</Badge>
+      <Badge className="border-[#34D399]/25 bg-[#34D399]/10 text-[#34D399]">
         MRR: {formatMoneyShort(mrr)}/мес
       </Badge>
     </div>

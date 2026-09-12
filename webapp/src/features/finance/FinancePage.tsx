@@ -47,7 +47,7 @@ export function FinancePage() {
   return (
     <div className="grid gap-4 lg:grid-cols-[300px_1fr] lg:items-start lg:gap-6">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-lg font-semibold tracking-tight">Финансы</h1>
+        <h1 className="mr-auto text-xl font-semibold tracking-tight text-white lg:text-2xl">Финансы</h1>
         <select
           aria-label="Месяц"
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
@@ -66,13 +66,13 @@ export function FinancePage() {
         <Tile
           label="Доход"
           loading={summary.isPending}
-          tone="text-emerald-600 dark:text-emerald-400"
+          tone="text-[#34D399]"
           value={summary.data ? formatMoney(summary.data.income) : '—'}
         />
         <Tile
           label="Расход"
           loading={summary.isPending}
-          tone="text-red-600 dark:text-red-400"
+          tone="text-[#FB7185]"
           value={summary.data ? formatMoney(summary.data.expense) : '—'}
         />
         <Tile
@@ -80,8 +80,8 @@ export function FinancePage() {
           loading={summary.isPending}
           tone={
             (summary.data?.net ?? 0) >= 0
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-red-600 dark:text-red-400'
+              ? 'text-[#34D399]'
+              : 'text-[#FB7185]'
           }
           value={summary.data ? formatMoney(summary.data.net) : '—'}
         />
@@ -121,9 +121,9 @@ export function FinancePage() {
           </p>
         )}
         {/* ПК: таблица операций */}
-        <div className="hidden overflow-hidden rounded-xl border lg:block">
+        <div className="hidden overflow-hidden rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.035] to-transparent lg:block">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <thead className="bg-white/[0.04] text-left text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
               <tr>
                 <th className="px-3 py-2 font-medium">Дата</th>
                 <th className="px-3 py-2 font-medium">Категория</th>
@@ -134,7 +134,7 @@ export function FinancePage() {
             <tbody>
               {(txns.data?.items ?? []).map((txn) => (
                 <tr
-                  className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+                  className="cursor-pointer border-t border-white/5 transition-colors hover:bg-[rgba(99,102,241,0.07)]"
                   key={txn.id}
                   onClick={() => setSelectedTxn(txn)}
                 >
@@ -144,8 +144,8 @@ export function FinancePage() {
                   <td
                     className={`px-3 py-2 text-right font-semibold tabular-nums ${
                       txn.kind === 'income'
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-red-600 dark:text-red-400'
+                        ? 'text-[#34D399]'
+                        : 'text-[#FB7185]'
                     }`}
                   >
                     {txn.kind === 'income' ? '+' : '−'}{formatMoney(txn.amount)}
@@ -160,15 +160,15 @@ export function FinancePage() {
         <div className="lg:hidden">
         {txns.data?.items.map((txn) => (
           <button
-            className="flex items-center gap-3 rounded-xl border bg-background p-3 text-left transition-colors hover:bg-muted/40"
+            className="flex items-center gap-3 rounded-xl border border-white/6 bg-[#101724] p-3 text-left transition-all hover:border-[#6366F1]/35"
             key={txn.id}
             onClick={() => setSelectedTxn(txn)}
           >
             <span
               className={`grid size-9 shrink-0 place-items-center rounded-full text-base ${
                 txn.kind === 'income'
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                  : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                  ? 'border border-[#34D399]/25 bg-[#34D399]/12 text-[#34D399]'
+                  : 'border border-[#F43F5E]/25 bg-[#F43F5E]/12 text-[#FB7185]'
               }`}
             >
               {txn.kind === 'income' ? '↓' : '↑'}
@@ -182,8 +182,8 @@ export function FinancePage() {
             <span
               className={`shrink-0 text-sm font-semibold ${
                 txn.kind === 'income'
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-red-600 dark:text-red-400'
+                  ? 'text-[#34D399]'
+                  : 'text-[#FB7185]'
               }`}
             >
               {txn.kind === 'income' ? '+' : '−'}
@@ -195,7 +195,7 @@ export function FinancePage() {
       </section>
 
       <Button
-        className="fixed right-4 bottom-20 z-30 h-14 w-14 rounded-full text-2xl shadow-lg lg:bottom-6"
+        className="fixed right-4 bottom-20 z-30 h-14 w-14 rounded-full bg-gradient-to-br from-[#7B5CFA] to-[#4338CA] text-2xl text-white shadow-[0_8px_32px_-6px_rgba(99,102,241,0.7)] transition-transform hover:scale-105 active:scale-95 lg:bottom-6"
         onClick={() => setCreating(true)}
         size="icon-lg"
       >
@@ -226,9 +226,15 @@ function Tile({
   value: string
 }) {
   return (
-    <div className="rounded-xl border bg-background p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-sm font-semibold ${loading ? 'text-muted-foreground' : tone}`}>
+    <div className="rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.045] to-white/[0.015] p-4">
+      <p className="text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p
+        className={`mt-1.5 text-xl font-bold tracking-tight tabular-nums ${
+          loading ? 'text-muted-foreground' : tone
+        }`}
+      >
         {loading ? '…' : value}
       </p>
     </div>
