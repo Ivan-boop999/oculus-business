@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { useAuth } from '@/features/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +13,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import type { Deal } from '@oculus-business/contracts'
+import {
+  companiesResponseSchema,
+  companyResponseSchema,
+  type Deal,
+} from '@oculus-business/contracts'
 import { todayDateOnly } from '@/platform/format'
 import { useIsDesktop } from '@/platform/use-is-desktop'
 
@@ -52,6 +58,7 @@ type DealFormState = {
   contactPhone: string
   contactTelegram: string
   source: string
+  companyName: string
   monthlyAmount: string
   oneTimeAmount: string
   note: string
@@ -66,6 +73,7 @@ function formFromDeal(deal: Deal | null): DealFormState {
     contactPhone: deal?.contactPhone ?? '',
     contactTelegram: deal?.contactTelegram ?? '',
     source: deal?.source ?? '',
+    companyName: deal?.companyName ?? '',
     monthlyAmount: deal?.monthlyAmount ? String(deal.monthlyAmount) : '',
     oneTimeAmount: deal?.oneTimeAmount ? String(deal.oneTimeAmount) : '',
     note: deal?.note ?? '',
@@ -134,6 +142,13 @@ export function DealSheet({
   const moveDeal = useMoveDealMutation()
   const deleteDeal = useDeleteDealMutation()
   const comments = useDealCommentsQuery(open && deal !== null ? deal.id : null)
+  const { transport } = useAuth()
+  const queryClient = useQueryClient()
+  const companies = useQuery({
+    queryKey: ['crm', 'companies'],
+    queryFn: ({ signal }) =>
+      transport.request('/api/crm/companies', companiesResponseSchema, { signal }),
+  })
   const history = useDealHistoryQuery(open && deal !== null ? deal.id : null)
   const addComment = useAddDealCommentMutation(deal?.id ?? '')
 
@@ -146,10 +161,28 @@ export function DealSheet({
     }
     const input = payloadFromForm(form)
     try {
+      // Контрагент: существующий по имени или создаём новый на лету.
+      let companyId: string | null = null
+      if (form.companyName.trim()) {
+        const existing = companies.data?.items.find(
+          (company) => company.name === form.companyName.trim(),
+        )
+        if (existing) {
+          companyId = existing.id
+        } else {
+          const created = await transport.request('/api/crm/companies', companyResponseSchema, {
+            method: 'POST',
+            body: { name: form.companyName.trim() },
+          })
+          companyId = created.company.id
+          await queryClient.invalidateQueries({ queryKey: ['crm', 'companies'] })
+        }
+      }
+      const inputWithCompany = { ...input, companyId }
       if (isCreate) {
-        await createDeal.mutateAsync({ ...input, stageId: onCreateStageId ?? undefined })
+        await createDeal.mutateAsync({ ...inputWithCompany, stageId: onCreateStageId ?? undefined })
       } else if (deal !== null) {
-        await updateDeal.mutateAsync({ id: deal.id, input })
+        await updateDeal.mutateAsync({ id: deal.id, input: inputWithCompany })
       }
       onClose()
     } catch (caught) {
@@ -242,6 +275,26 @@ export function DealSheet({
               </datalist>
             </Field>
           </div>
+
+          <Field label="Контрагент">
+            <select
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              onChange={(event) => set({ companyName: event.target.value })}
+              value={form.companyName}
+            >
+              <option value="">— не выбран —</option>
+              {(companies.data?.items ?? []).map((company) => (
+                <option key={company.id} value={company.name}>
+                  {company.name}
+                  {company.dealsCount > 0 ? ` (${company.dealsCount})` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-muted-foreground">
+              Список ведётся на экране «Контрагенты»; новая компания появится, когда сохранишь
+              сделку с новым названием.
+            </p>
+          </Field>
 
           <div className="grid grid-cols-[1fr_140px] gap-3">
             <Field label="Следующее действие">

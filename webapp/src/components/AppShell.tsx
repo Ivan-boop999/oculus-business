@@ -3,6 +3,7 @@ import {
   ArrowRight01Icon,
   BarChartIcon,
   Calendar01Icon,
+  Contact01Icon,
   DashboardSquare01Icon,
   HandshakeIcon,
   Settings01Icon,
@@ -41,6 +42,7 @@ type NavNode = NavLeaf & {
 const NAV: ReadonlyArray<NavNode> = [
   { label: 'Обзор', to: '/app', icon: DashboardSquare01Icon, exact: true },
   { label: 'Сделки', to: '/app/crm', icon: HandshakeIcon },
+  { label: 'Контрагенты', to: '/app/companies', icon: Contact01Icon },
   {
     label: 'Финансы',
     to: '/app/finance',

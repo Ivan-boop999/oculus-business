@@ -141,6 +141,7 @@ function ExpectedPayments() {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({
     title: '',
+    invoiceNumber: '',
     amount: '',
     dueDate: '',
     probability: '80',
@@ -179,6 +180,7 @@ function ExpectedPayments() {
           method: 'POST',
           body: createExpectedPaymentRequestSchema.parse({
             title: form.title.trim(),
+            invoiceNumber: form.invoiceNumber.trim() || null,
             amount,
             dueDate: form.dueDate,
             probability: Number(form.probability) || 80,
@@ -186,7 +188,7 @@ function ExpectedPayments() {
         },
       )
       setCreating(false)
-      setForm({ title: '', amount: '', dueDate: '', probability: '80' })
+      setForm({ title: '', invoiceNumber: '', amount: '', dueDate: '', probability: '80' })
       setError(null)
       invalidate()
     } catch (caught) {
@@ -216,6 +218,11 @@ function ExpectedPayments() {
             onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
             placeholder="Счёт: за что (например, «ВБ, этап 2»)"
             value={form.title}
+          />
+          <Input
+            onChange={(event) => setForm((prev) => ({ ...prev, invoiceNumber: event.target.value }))}
+            placeholder="№ счёта (необязательно)"
+            value={form.invoiceNumber}
           />
           <div className="grid grid-cols-3 gap-2">
             <Input
@@ -266,6 +273,11 @@ function ExpectedPayments() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-white">
                   {payment.title}
+                  {payment.invoiceNumber && (
+                    <span className="ml-1.5 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground tabular-nums">
+                      № {payment.invoiceNumber}
+                    </span>
+                  )}
                 </span>
                 <span className="block text-[11px] text-muted-foreground">
                   вероятность {payment.probability}% → в прогнозе{' '}

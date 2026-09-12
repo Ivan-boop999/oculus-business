@@ -147,3 +147,7 @@ export function useDealHistoryQuery(dealId: string | null) {
     enabled: dealId !== null,
   })
 }
+
+export const companiesQueryKeys = {
+  all: ['crm', 'companies'] as const,
+}

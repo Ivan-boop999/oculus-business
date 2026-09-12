@@ -284,6 +284,37 @@ function BoardHeader({
         Отчёт
       </Link>
       <button
+        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-[#6366F1]/35 hover:text-white"
+        onClick={() => {
+          const rows = [['Сделка', 'Контрагент', 'Этап', 'Подписка ₽/мес', 'Разовая ₽', 'Следующее действие', 'Когда', 'Причина отказа', 'Ответственный']]
+          for (const stage of stages) {
+            for (const deal of stage.deals) {
+              rows.push([
+                deal.title,
+                deal.companyName ?? '',
+                stage.title,
+                String(deal.monthlyAmount),
+                String(deal.oneTimeAmount),
+                deal.nextAction ?? '',
+                deal.nextActionAt ?? '',
+                deal.lostReason ?? '',
+                deal.createdByName ?? '',
+              ])
+            }
+          }
+          const csv = '\uFEFF' + rows.map((row) => row.map((cell) => cell.replace(/;/g, ',')).join(';')).join('\r\n')
+          const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+          const link = document.createElement('a')
+          link.href = url
+          link.download = 'oculus-business-deals.csv'
+          link.click()
+          URL.revokeObjectURL(url)
+        }}
+        title="Скачать все сделки в CSV"
+      >
+        CSV
+      </button>
+      <button
         className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
           calendarMode
             ? 'border-[#6366F1]/40 bg-[#6366F1]/15 text-[#A5B4FC]'

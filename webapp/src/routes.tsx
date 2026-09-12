@@ -119,6 +119,12 @@ const userForecastRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages'), 'ForecastPage'),
 })
 
+const userCompaniesRoute = createRoute({
+  getParentRoute: () => userWorkspaceRoute,
+  path: '/app/companies',
+  component: lazyRouteComponent(() => import('./pages'), 'CompaniesPage'),
+})
+
 const userCrmReportRoute = createRoute({
   getParentRoute: () => userWorkspaceRoute,
   path: '/app/crm/report',
@@ -140,6 +146,7 @@ const routeTree = rootRoute.addChildren([
   userWorkspaceRoute.addChildren([
     userHomeRoute,
     userCrmRoute,
+    userCompaniesRoute,
     userCrmReportRoute,
     userFinanceRoute,
     userRecurringRoute,

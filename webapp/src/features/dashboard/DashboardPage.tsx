@@ -9,7 +9,7 @@ import {
   TimerIcon,
 } from '@hugeicons/core-free-icons'
 
-import { dashboardResponseSchema } from '@oculus-business/contracts'
+import { cashflowHistoryResponseSchema, dashboardResponseSchema } from '@oculus-business/contracts'
 import { KpiCard, MoneyBadge, SectionCard } from '@/components/dashboard-ui'
 import { useAuth } from '@/features/auth'
 import { dateLabel, formatMoney, formatMoneyShort, RUNWAY_MODE_LABELS } from '@/platform/format'
@@ -18,6 +18,15 @@ import { dateLabel, formatMoney, formatMoneyShort, RUNWAY_MODE_LABELS } from '@/
 /// со свечением, воронка с барами и лента ближайших действий.
 export function DashboardPage() {
   const { transport } = useAuth()
+  const history = useQuery({
+    queryKey: ['finance', 'cashflow', 6],
+    queryFn: ({ signal }) =>
+      transport.request('/api/finance/history?months=6', cashflowHistoryResponseSchema, {
+        signal,
+      }),
+  })
+  const sparkline = (history.data?.months ?? []).map((month) => [month.income, month.expense] as [number, number])
+
   const dashboard = useQuery({
     queryKey: ['dashboard'],
     queryFn: ({ signal }) => transport.request('/api/dashboard', dashboardResponseSchema, { signal }),
@@ -113,7 +122,8 @@ export function DashboardPage() {
         <KpiCard
           icon={<HugeiconsIcon className="size-4" icon={Coins01Icon} strokeWidth={2} />}
           label="MRR · подписки"
-          sub="с действующих клиентов"
+          sparkline={sparkline}
+          sub="доход/расход по месяцам (6 мес)"
           tone="positive"
           value={`${formatMoneyShort(data.crm.mrr)}/мес`}
         />
@@ -126,6 +136,7 @@ export function DashboardPage() {
         />
         <KpiCard
           icon={<HugeiconsIcon className="size-4" icon={ArrowUp01Icon} strokeWidth={2} />}
+          sparkline={sparkline}
           label="Разовый пайплайн"
           sub="пилоты и внедрения"
           value={formatMoneyShort(data.crm.pipelineOneTime)}

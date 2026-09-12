@@ -8,6 +8,7 @@ export const workspaceRoutesByRole = {
   user: [
     '/app',
     '/app/crm',
+    '/app/companies',
     '/app/crm/report',
     '/app/finance',
     '/app/finance/recurring',
