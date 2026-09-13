@@ -21,10 +21,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        {/* Единственная тема — фирменная тёмная OCULUS: светлый вариант шаблона
+            не адаптирован и отключён принудительно. */}
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
-          enableSystem
+          forcedTheme="dark"
+          enableSystem={false}
           storageKey="oculus_business_theme"
         >
           <AuthProvider>

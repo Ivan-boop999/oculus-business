@@ -94,7 +94,7 @@ export function NotificationsBell() {
                   <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 </p>
                 <p
-                  className={`mt-0.5 line-clamp-2 text-[11px] leading-snug ${
+                  className={`mt-0.5 line-clamp-2 text-xs leading-snug ${
                     item.kind === 'overdue' ? 'text-[#FB7185]' : 'text-muted-foreground'
                   }`}
                 >

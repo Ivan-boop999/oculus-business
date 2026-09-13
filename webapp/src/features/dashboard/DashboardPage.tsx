@@ -63,8 +63,12 @@ export function DashboardPage() {
   const monthTotal = data.finance.monthIncome + data.finance.monthExpense
   const incomeShare = monthTotal > 0 ? (data.finance.monthIncome / monthTotal) * 100 : 0
 
+  const isEmptyCompany = data.crm.totalDeals === 0 && data.crm.totalTxns === 0
+
   return (
     <div className="grid gap-4">
+      {isEmptyCompany && <OnboardingCard />}
+
       {/* ------------------------------------------------ Hero: баланс и здоровье */}
       <section className="relative overflow-hidden rounded-2xl border border-[#6366F1]/20 bg-gradient-to-br from-[#6366F1]/[0.14] via-white/[0.03] to-transparent p-5">
         <div
@@ -246,5 +250,67 @@ function ProductRow({
         {value}
       </span>
     </div>
+  )
+}
+
+/// Онбординг для новой компании: чек-лист первых шагов, пока нет ни сделок, ни операций.
+function OnboardingCard() {
+  const steps = [
+    {
+      title: 'Заведите первую сделку',
+      hint: 'Канбан-доска: компания, контакты, сумма подписки',
+      to: '/app/crm',
+    },
+    {
+      title: 'Поставьте стартовый остаток',
+      hint: 'Сколько денег на счетах сейчас — от этого считается баланс',
+      to: '/app/finance/recurring',
+    },
+    {
+      title: 'Добавьте регулярные платежи',
+      hint: 'Сервер, обслуживание ООО — всё, что повторяется каждый месяц',
+      to: '/app/finance/recurring',
+    },
+    {
+      title: 'Заведите первую задачу',
+      hint: 'Доска доработок и багов продукта',
+      to: '/app/tasks',
+    },
+  ]
+
+  return (
+    <section className="relative overflow-hidden rounded-2xl border border-[#6366F1]/25 bg-gradient-to-br from-[#6366F1]/[0.14] via-white/[0.03] to-transparent p-5">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-20 -right-14 size-56 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.22),transparent_65%)] blur-2xl"
+      />
+      <h2 className="relative text-lg font-semibold tracking-tight text-white">
+        Добро пожаловать в Окулус Бизнес 👋
+      </h2>
+      <p className="relative mt-1 max-w-lg text-sm text-muted-foreground">
+        Здесь весь бизнес под рукой: сделки, деньги и развитие продукта. Начните с четырёх
+        шагов — дальше всё посчитается само.
+      </p>
+      <div className="relative mt-4 grid gap-2">
+        {steps.map((step, index) => (
+          <Link
+            className="group flex items-center gap-3 rounded-xl border border-white/6 bg-white/[0.03] px-3 py-2.5 transition-all hover:border-[#6366F1]/40 hover:bg-[rgba(99,102,241,0.07)]"
+            key={step.title}
+            to={step.to}
+          >
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#7B5CFA] to-[#4338CA] text-xs font-bold text-white shadow-[0_0_12px_rgba(99,102,241,0.4)]">
+              {index + 1}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-white">{step.title}</span>
+              <span className="block text-xs text-muted-foreground">{step.hint}</span>
+            </span>
+            <span className="shrink-0 text-sm text-[#A5B4FC] opacity-0 transition-opacity group-hover:opacity-100">
+              →
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }

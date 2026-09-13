@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router'
 
 import { PageContainer, PageHeader } from '@/components/PageLayout'
 import { AvatarPanel } from '@/features/avatar'
-import { AppearancePanel } from '@/features/settings'
 import { AccountSummary } from './AccountSummary'
 import { ProfilePanel } from './ProfilePanel'
 import { SessionPanel } from './SessionPanel'
@@ -49,7 +48,12 @@ export function UserSettings({
         title="Настройки"
       />
       <div className="grid items-start gap-6 lg:grid-cols-2">
-        <AppearancePanel />
+        <div className="rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.045] to-white/[0.015] p-4">
+          <h2 className="text-sm font-semibold text-white">Тема оформления</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Тёмная — единственная, фирменная для OCULUS. Светлая не используется.
+          </p>
+        </div>
         <div className="grid gap-6">
           {user.role === 'admin' && (
             <Link className="rounded-xl border p-4 text-sm transition-colors hover:bg-muted/40" to="/admin/users">

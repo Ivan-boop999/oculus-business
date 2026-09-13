@@ -99,6 +99,7 @@ export type BusinessRepository = {
   finishSprint(id: string): Promise<void>
   listCompanies(): Promise<Company[]>
   createCompany(input: CreateCompanyRequest): Promise<Company>
+  countTxns(): Promise<number>
   listRecentComments(since: Date, limit: number): Promise<
     Array<{ body: string; createdAt: string; dealTitle: string; dealId: string; authorName: string | null }>
   >

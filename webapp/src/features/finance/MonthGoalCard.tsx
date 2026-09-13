@@ -61,11 +61,11 @@ export function MonthGoalCard({
   return (
     <div className="rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.045] to-white/[0.015] p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+        <h2 className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
           Цель месяца
         </h2>
         <button
-          className="text-[11px] text-[#A5B4FC] hover:text-white"
+          className="text-xs text-[#A5B4FC] hover:text-white"
           onClick={() => {
             setMrrGoal(String(goal.mrrGoal))
             setIncomeGoal(String(goal.incomeGoal))
@@ -78,7 +78,7 @@ export function MonthGoalCard({
 
       {editing ? (
         <div className="grid gap-2">
-          <label className="grid gap-1 text-[11px] text-muted-foreground">
+          <label className="grid gap-1 text-xs text-muted-foreground">
             План нового MRR, ₽/мес
             <Input
               inputMode="numeric"
@@ -86,7 +86,7 @@ export function MonthGoalCard({
               value={mrrGoal}
             />
           </label>
-          <label className="grid gap-1 text-[11px] text-muted-foreground">
+          <label className="grid gap-1 text-xs text-muted-foreground">
             План разовой выручки, ₽
             <Input
               inputMode="numeric"
@@ -124,7 +124,7 @@ export function MonthGoalCard({
 function GoalBar({ label, pct, text }: { label: string; pct: number; text: string }) {
   return (
     <div>
-      <div className="flex items-baseline justify-between text-[11px]">
+      <div className="flex items-baseline justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium text-white tabular-nums">{text}</span>
       </div>
@@ -134,7 +134,7 @@ function GoalBar({ label, pct, text }: { label: string; pct: number; text: strin
           style={{ width: `${Math.max(2, pct)}%` }}
         />
       </div>
-      <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">
+      <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
         выполнено {Math.round(pct)}%
       </p>
     </div>

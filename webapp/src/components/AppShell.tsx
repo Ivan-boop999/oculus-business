@@ -1,4 +1,20 @@
 import { useEffect, useState } from 'react'
+
+const SEEN_ROUTES_KEY = 'ob_seen_routes'
+const NEW_BADGE_ROUTES = new Set([
+  '/app/finance/recurring',
+  '/app/finance/forecast',
+  '/app/companies',
+])
+
+function readSeenRoutes(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(SEEN_ROUTES_KEY)
+    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+  } catch {
+    return new Set()
+  }
+}
 import {
   ArrowRight01Icon,
   BarChartIcon,
@@ -30,6 +46,7 @@ type NavIcon = typeof DashboardSquare01Icon
 type NavLeaf = {
   adminOnly?: boolean
   icon: NavIcon
+  isNew?: boolean
   label: string
   to: string
   exact?: boolean
@@ -42,7 +59,7 @@ type NavNode = NavLeaf & {
 const NAV: ReadonlyArray<NavNode> = [
   { label: 'Обзор', to: '/app', icon: DashboardSquare01Icon, exact: true },
   { label: 'Сделки', to: '/app/crm', icon: HandshakeIcon },
-  { label: 'Контрагенты', to: '/app/companies', icon: Contact01Icon },
+  { label: 'Контрагенты', to: '/app/companies', icon: Contact01Icon, isNew: true },
   {
     label: 'Финансы',
     to: '/app/finance',
@@ -84,6 +101,17 @@ export function AppShell({
 }>) {
   const pathname = useLocation({ select: (location) => location.pathname })
   const navigate = useNavigate()
+  const [seenRoutes, setSeenRoutes] = useState<Set<string>>(() => readSeenRoutes())
+
+  // Посещение маршрута снимает бейдж «новое» (для пунктов с NEW_BADGE_ROUTES).
+  useEffect(() => {
+    if (NEW_BADGE_ROUTES.has(pathname) && !seenRoutes.has(pathname)) {
+      const next = new Set(seenRoutes)
+      next.add(pathname)
+      setSeenRoutes(next)
+      window.localStorage.setItem(SEEN_ROUTES_KEY, JSON.stringify([...next]))
+    }
+  }, [pathname, seenRoutes])
   const financeActive = pathname.startsWith('/app/finance')
 
   // Какие группы раскрыты. Группа своей активной вкладки разворачивается автоматически.
@@ -142,9 +170,15 @@ export function AppShell({
                 open={openGroups[node.label] ?? false}
                 node={node}
                 pathname={pathname}
+                seenRoutes={seenRoutes}
               />
             ) : (
-              <SidebarLink active={matches(node, pathname)} item={node} key={node.label} />
+              <SidebarLink
+                active={matches(node, pathname)}
+                isNew={node.isNew && !seenRoutes.has(node.to)}
+                item={node}
+                key={node.label}
+              />
             ),
           )}
         </nav>
@@ -254,11 +288,13 @@ function NavGroup({
   open,
   onToggle,
   pathname,
+  seenRoutes,
 }: {
   node: NavNode
   open: boolean
   onToggle: () => void
   pathname: string
+  seenRoutes: Set<string>
 }) {
   const childActive = node.children?.some((child) => matches(child, pathname)) ?? false
   const active = matches(node, pathname) || childActive
@@ -300,7 +336,13 @@ function NavGroup({
         <div className="overflow-hidden">
           <div className="relative ml-[1.4rem] grid gap-0.5 border-l border-white/8 py-1 pl-2">
             {node.children?.map((child) => (
-              <SidebarLink active={matches(child, pathname)} compact item={child} key={child.to} />
+              <SidebarLink
+                active={matches(child, pathname)}
+                compact
+                isNew={!seenRoutes.has(child.to)}
+                item={child}
+                key={child.to}
+              />
             ))}
           </div>
         </div>
@@ -312,10 +354,12 @@ function NavGroup({
 function SidebarLink({
   active,
   compact = false,
+  isNew = false,
   item,
 }: {
   active: boolean
   compact?: boolean
+  isNew?: boolean
   item: NavLeaf
 }) {
   return (
@@ -338,7 +382,10 @@ function SidebarLink({
         icon={item.icon}
         strokeWidth={1.9}
       />
-      <span className="truncate">{item.label}</span>
+      <span className="flex-1 truncate">{item.label}</span>
+      {isNew && !active && (
+        <span className="size-1.5 shrink-0 rounded-full bg-[#818CF8] shadow-[0_0_8px_rgba(129,140,248,0.9)]" title="Новый раздел" />
+      )}
     </Link>
   )
 }

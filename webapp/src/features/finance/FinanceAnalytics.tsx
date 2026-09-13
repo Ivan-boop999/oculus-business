@@ -279,8 +279,8 @@ function ExpectedPayments() {
                     </span>
                   )}
                 </span>
-                <span className="block text-[11px] text-muted-foreground">
-                  вероятность {payment.probability}% → в прогнозе{' '}
+                <span className="block text-xs text-muted-foreground">
+                  вероятность {payment.probability}% · в прогнозе{' '}
                   {formatMoneyShort(Math.round((payment.amount * payment.probability) / 100))}
                 </span>
               </span>

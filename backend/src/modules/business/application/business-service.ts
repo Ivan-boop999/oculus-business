@@ -665,16 +665,19 @@ export class BusinessService {
   async dashboard(): Promise<DashboardResponse> {
     const now = this.clock.now()
     const month = currentMonth(now)
-    const [stages, columns, summary, forecast] = await Promise.all([
+    const [stages, columns, summary, forecast, totalTxns] = await Promise.all([
       this.repository.listCrmBoard(),
       this.repository.listDevBoard(),
       this.summary(month),
       this.forecast(1),
+      this.repository.countTxns(),
     ])
 
     let activeDeals = 0
     let wonDeals = 0
+    let totalDeals = 0
     for (const stage of stages) {
+      totalDeals += stage.deals.length
       if (stage.isWon) wonDeals += stage.deals.length
       else if (!stage.isLost) activeDeals += stage.deals.length
     }
@@ -714,6 +717,8 @@ export class BusinessService {
     return {
       crm: {
         activeDeals,
+        totalDeals,
+        totalTxns,
         wonDeals,
         mrr: summary.mrr,
         pipelineMonthly: summary.pipelineMonthly,

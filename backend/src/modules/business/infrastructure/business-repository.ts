@@ -781,6 +781,10 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
       return { id: row.id, name: row.name, note: row.note, dealsCount: 0, activeMrr: 0 }
     },
 
+    async countTxns() {
+      return db.txn.count()
+    },
+
     async listRecentComments(since, limit) {
       const rows = await db.dealComment.findMany({
         where: { createdAt: { gt: since } },

@@ -436,6 +436,8 @@ export const dashboardResponseSchema = z
   .object({
     crm: z.object({
       activeDeals: z.number().int(),
+      totalDeals: z.number().int(),
+      totalTxns: z.number().int(),
       wonDeals: z.number().int(),
       mrr: z.number().int(),
       pipelineMonthly: z.number().int(),
