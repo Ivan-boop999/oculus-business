@@ -339,7 +339,7 @@ function NavGroup({
               <SidebarLink
                 active={matches(child, pathname)}
                 compact
-                isNew={!seenRoutes.has(child.to)}
+                isNew={NEW_BADGE_ROUTES.has(child.to) && !seenRoutes.has(child.to)}
                 item={child}
                 key={child.to}
               />

@@ -53,7 +53,7 @@ export function NotificationsBell() {
       >
         <span className="text-base leading-none">🔔</span>
         {total > 0 && (
-          <span className="absolute -top-1 -right-1 grid min-w-4.5 place-items-center rounded-full border border-background bg-gradient-to-br from-[#7B5CFA] to-[#4338CA] px-1 text-[10px] font-bold text-white shadow-[0_0_10px_rgba(99,102,241,0.6)] tabular-nums">
+          <span className="absolute -top-1 -right-1 grid min-w-4.5 place-items-center rounded-full border border-background bg-gradient-to-br from-[#7B5CFA] to-[#4338CA] px-1 text-xs font-bold text-white shadow-[0_0_10px_rgba(99,102,241,0.6)] tabular-nums">
             {total > 99 ? '99+' : total}
           </span>
         )}
@@ -62,12 +62,12 @@ export function NotificationsBell() {
       {open && (
         <div className="absolute top-11 right-0 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 bg-[#121926] shadow-2xl">
           <div className="flex items-center justify-between border-b border-white/8 px-4 py-2.5">
-            <p className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+            <p className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
               Уведомления
             </p>
             {total > 0 && (
               <button
-                className="text-[11px] text-[#A5B4FC] hover:text-white"
+                className="text-xs text-[#A5B4FC] hover:text-white"
                 disabled={seen.isPending}
                 onClick={() => seen.mutate()}
               >

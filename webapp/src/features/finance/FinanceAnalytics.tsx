@@ -41,7 +41,7 @@ function CashflowChart() {
 
   return (
     <section className="rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.04] to-white/[0.01] p-4">
-      <h2 className="mb-3 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+      <h2 className="mb-3 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
         Денежный поток · 12 месяцев
       </h2>
       {months.length === 0 ? (
@@ -70,7 +70,7 @@ function CashflowChart() {
           ))}
         </div>
       )}
-      <div className="mt-2 flex gap-4 text-[10px] text-muted-foreground">
+      <div className="mt-2 flex gap-4 text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span className="size-2 rounded-sm bg-[#34D399]" /> доход
         </span>
@@ -97,7 +97,7 @@ function MrrMovementChart() {
   return (
     <section className="rounded-2xl border border-[#6366F1]/20 bg-gradient-to-br from-[#6366F1]/[0.08] via-white/[0.02] to-transparent p-4">
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold tracking-[0.1em] text-[#A5B4FC] uppercase">
+        <h2 className="text-xs font-semibold tracking-[0.1em] text-[#A5B4FC] uppercase">
           Движение MRR
         </h2>
         <span className="text-sm font-bold text-white tabular-nums">
@@ -113,7 +113,7 @@ function MrrMovementChart() {
         <div className="grid gap-1">
           {months.map((month) => (
             <div className="flex items-center gap-2" key={month.month}>
-              <span className="w-16 shrink-0 text-[10px] text-muted-foreground tabular-nums">
+              <span className="w-16 shrink-0 text-[11px] text-muted-foreground tabular-nums">
                 {month.month.slice(5)}.{month.month.slice(2, 4)}
               </span>
               <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/5">
@@ -122,7 +122,7 @@ function MrrMovementChart() {
                   style={{ width: `${Math.max(1, (month.totalMrr / maxTotal) * 100)}%` }}
                 />
               </div>
-              <span className="w-20 shrink-0 text-right text-[10px] text-muted-foreground tabular-nums">
+              <span className="w-20 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
                 {month.newMrr > 0 && <span className="text-[#34D399]">+{formatMoneyShort(month.newMrr)}</span>}
                 {month.churnedMrr > 0 && <span className="text-[#FB7185]"> −{formatMoneyShort(month.churnedMrr)}</span>}
                 {month.newMrr === 0 && month.churnedMrr === 0 && '—'}
@@ -201,11 +201,11 @@ function ExpectedPayments() {
   return (
     <section className="rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.04] to-white/[0.01] p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+        <h2 className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
           Ожидаемые поступления · дебиторка
         </h2>
         <button
-          className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-[#6366F1]/40 hover:text-white"
+          className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[#6366F1]/40 hover:text-white"
           onClick={() => setCreating((value) => !value)}
         >
           {creating ? 'Отмена' : '+ Ожидание'}
@@ -267,14 +267,14 @@ function ExpectedPayments() {
               className="flex items-center gap-3 rounded-xl border border-white/6 bg-white/[0.025] px-3 py-2.5"
               key={payment.id}
             >
-              <span className="grid shrink-0 rounded-md border border-[#6366F1]/30 bg-[#6366F1]/12 px-2 py-1 text-[11px] font-semibold text-[#A5B4FC] tabular-nums">
+              <span className="grid shrink-0 rounded-md border border-[#6366F1]/30 bg-[#6366F1]/12 px-2 py-1 text-xs font-semibold text-[#A5B4FC] tabular-nums">
                 {dateLabel(payment.dueDate)}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-white">
                   {payment.title}
                   {payment.invoiceNumber && (
-                    <span className="ml-1.5 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground tabular-nums">
+                    <span className="ml-1.5 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground tabular-nums">
                       № {payment.invoiceNumber}
                     </span>
                   )}
@@ -288,7 +288,7 @@ function ExpectedPayments() {
                 {formatMoneyShort(payment.amount)}
               </span>
               <button
-                className="shrink-0 rounded-lg border border-[#34D399]/30 bg-[#34D399]/10 px-2.5 py-1.5 text-[11px] font-medium text-[#34D399] transition-colors hover:bg-[#34D399]/20"
+                className="shrink-0 rounded-lg border border-[#34D399]/30 bg-[#34D399]/10 px-2.5 py-1.5 text-xs font-medium text-[#34D399] transition-colors hover:bg-[#34D399]/20"
                 disabled={received.isPending}
                 onClick={() => received.mutate(payment.id)}
                 title="Создать доход и убрать из списка"
@@ -299,7 +299,7 @@ function ExpectedPayments() {
           ))}
         </div>
       )}
-      <p className="mt-2 text-[10px] text-muted-foreground">
+      <p className="mt-2 text-[11px] text-muted-foreground">
         В баланс не входят (кассовый метод), учитываются в{' '}
         <Link className="text-[#A5B4FC] hover:text-white" to="/app/finance/forecast">
           прогнозе

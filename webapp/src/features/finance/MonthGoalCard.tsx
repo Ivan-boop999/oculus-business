@@ -134,7 +134,7 @@ function GoalBar({ label, pct, text }: { label: string; pct: number; text: strin
           style={{ width: `${Math.max(2, pct)}%` }}
         />
       </div>
-      <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+      <p className="mt-1 text-xs text-muted-foreground tabular-nums">
         выполнено {Math.round(pct)}%
       </p>
     </div>
