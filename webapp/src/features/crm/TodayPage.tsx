@@ -46,12 +46,25 @@ export function TodayPage() {
   }
 
   const data = today.data
+  type LaunchItem = {
+    dealId: string
+    title: string
+    companyName: string | null
+    launchOwnerName: string | null
+    valueCheckDueOn: string | null
+    overdue: boolean
+    unusedPaid: boolean
+    receivedTotal: number
+    firstScenarioAcceptedOn: string | null
+  }
+  const launchControl = ((data as { launchControl?: LaunchItem[] }).launchControl ?? [])
   const hasAnything =
     data.overdueTasks.length > 0 ||
     data.todayTasks.length > 0 ||
     data.upcomingMeetings.length > 0 ||
     data.repliesToProcess.length > 0 ||
-    data.dealsWithoutNextStep.length > 0
+    data.dealsWithoutNextStep.length > 0 ||
+    launchControl.length > 0
 
   return (
     <div className="grid gap-4">
@@ -167,6 +180,40 @@ export function TodayPage() {
             <span className="shrink-0 text-[11px] text-muted-foreground">{deal.stageTitle}</span>
             <span className="shrink-0 text-[11px] text-[#A5B4FC]">{deal.ownerName ?? 'ответственный не назначен'}</span>
           </Link>
+        ))}
+      </Section>
+
+      <Section
+        title="Контроль запуска и использования"
+        tone="danger"
+        count={launchControl.length}
+        emptyText="Оплаченных, но неиспользуемых внедрений нет"
+      >
+        {launchControl.map((item) => (
+          <div className="rounded-xl border border-[#F59E0B]/25 bg-[#F59E0B]/8 p-3 text-sm" key={item.dealId}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-medium text-white">{item.title}</span>
+              <span className="shrink-0 text-[11px] text-[#FBBF24] tabular-nums">
+                {item.receivedTotal > 0 ? 'оплачено ' + item.receivedTotal.toLocaleString('ru-RU') + ' ₽' : ''}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {item.companyName ?? '—'} · владелец: {item.launchOwnerName ?? 'не назначен'}
+              {item.valueCheckDueOn !== null ? ' · контроль до ' + item.valueCheckDueOn : ' · дата контроля не задана'}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {item.unusedPaid && (
+                <Badge className="border-[#F43F5E]/25 bg-[#F43F5E]/10 text-[#FB7185]">
+                  оплачено, но первый сценарий не принят
+                </Badge>
+              )}
+              {item.overdue && (
+                <Badge className="border-[#F59E0B]/25 bg-[#F59E0B]/10 text-[#FBBF24]">
+                  контроль просрочен
+                </Badge>
+              )}
+            </div>
+          </div>
         ))}
       </Section>
     </div>

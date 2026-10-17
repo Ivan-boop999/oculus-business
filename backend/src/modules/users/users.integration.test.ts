@@ -150,6 +150,7 @@ maybeDescribe('users and admin API integration', () => {
         email: 'target@example.com',
         displayName: 'Target',
         role: 'user',
+        agentPermissions: [],
         createdAt: target.user.createdAt,
       },
     ])

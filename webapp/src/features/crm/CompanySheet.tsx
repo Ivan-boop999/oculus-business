@@ -15,10 +15,13 @@ import {
   useCompanyDncMutation,
   useCompanyEventsQuery,
   useContactsQuery,
+  useCreateActivityMutation,
   useCreateContactMutation,
+  useCreateSalesTaskMutation,
   useSalesTasksQuery,
   useUpdateCompanyMutation,
 } from './sales-queries'
+import { useAuth } from '@/features/auth'
 import { useCrmBoardQuery } from './queries'
 
 const RESEARCH_STATUS_LABELS: Record<string, string> = {
@@ -70,6 +73,11 @@ export function CompanySheet({
   const update = useUpdateCompanyMutation()
   const dnc = useCompanyDncMutation()
   const createContact = useCreateContactMutation()
+  const createActivity = useCreateActivityMutation()
+  const createTask = useCreateSalesTaskMutation()
+  const { user } = useAuth()
+  const [logOpen, setLogOpen] = useState(false)
+  const [taskOpen, setTaskOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [dncOpen, setDncOpen] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
@@ -121,6 +129,12 @@ export function CompanySheet({
             <Button onClick={() => setDncOpen((value) => !value)} size="sm" variant="outline">
               {company.doNotContact ? 'Снять запрет' : 'Запретить контакт'}
             </Button>
+            <Button onClick={() => setLogOpen((value) => !value)} size="sm" variant="outline">
+              📞 Записать
+            </Button>
+            <Button onClick={() => setTaskOpen((value) => !value)} size="sm" variant="outline">
+              📋 Задача
+            </Button>
             <Button onClick={() => setContactOpen((value) => !value)} size="sm" variant="outline">
               + Контакт
             </Button>
@@ -152,6 +166,35 @@ export function CompanySheet({
                     onSuccess: () => setDncOpen(false),
                   },
                 )
+              }
+            />
+          )}
+
+          {logOpen && (
+            <LogActivityForm
+              companyId={company.id}
+              disabled={createActivity.isPending}
+              onCancel={() => setLogOpen(false)}
+              onSubmit={(input) =>
+                createActivity.mutate({ ...input, timezone: 'Europe/Moscow' }, {
+                  onError: (caught) => setError(caught instanceof Error ? caught.message : 'Ошибка'),
+                  onSuccess: () => setLogOpen(false),
+                })
+              }
+            />
+          )}
+
+          {taskOpen && (
+            <QuickTaskForm
+              companyId={company.id}
+              assigneeId={user?.id ?? ''}
+              disabled={createTask.isPending}
+              onCancel={() => setTaskOpen(false)}
+              onSubmit={(input) =>
+                createTask.mutate(input, {
+                  onError: (caught) => setError(caught instanceof Error ? caught.message : 'Ошибка'),
+                  onSuccess: () => setTaskOpen(false),
+                })
               }
             />
           )}
@@ -377,6 +420,10 @@ function CompanyEditForm({
       <Field label="Источник нахождения">
         <Input onChange={(event) => set({ researchSource: event.target.value })} placeholder="Где нашли компанию" value={form.researchSource} />
       </Field>
+      <Field label="Заметка">
+        <Textarea onChange={(event) => set({ note: event.target.value })} rows={2} value={form.note} />
+      </Field>
+
       <Field label="Причина выбора">
         <Textarea onChange={(event) => set({ selectionReason: event.target.value })} rows={2} value={form.selectionReason} />
       </Field>
@@ -385,6 +432,7 @@ function CompanyEditForm({
           disabled={pending}
           onClick={() => {
             onSave({
+              note: form.note.trim() || null,
               website: form.website.trim() || null,
               inn: form.inn.trim() || null,
               region: form.region.trim() || null,
@@ -394,6 +442,7 @@ function CompanyEditForm({
               selectionReason: form.selectionReason.trim() || null,
               researchStatus: form.researchStatus as 'selected' | 'reaching' | 'dialogue' | 'nurture' | 'disqualified',
               relationStatus: form.relationStatus as 'prospect' | 'customer' | 'partner' | 'excluded',
+              expectedVersion: company.version,
             })
             onSaved()
           }}
@@ -585,6 +634,173 @@ function ActivityLine({ activity }: { activity: Activity }) {
       <p className="mt-0.5 text-[10px] text-muted-foreground/60">
         {activity.direction === 'inbound' ? 'входящее' : 'исходящее'} · автор: {activity.authorName ?? '—'} · {activity.timezone}
       </p>
+    </div>
+  )
+}
+
+function LogActivityForm({
+  companyId,
+  disabled,
+  onCancel,
+  onSubmit,
+}: {
+  companyId: string
+  disabled: boolean
+  onCancel: () => void
+  onSubmit: (input: {
+    companyId: string
+    occurredAt: string
+    channel: 'call' | 'email' | 'telegram' | 'meeting' | 'other'
+    actionType: 'call_attempt' | 'conversation' | 'meeting_scheduled' | 'meeting_held' | 'message_sent' | 'message_received' | 'other'
+    direction: 'outbound' | 'inbound'
+    result: string | null
+    note: string | null
+  }) => void
+}) {
+  const [form, setForm] = useState({
+    channel: 'call',
+    actionType: 'call_attempt',
+    direction: 'outbound',
+    result: '',
+    note: '',
+  })
+  const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }))
+  const now = new Date()
+  const occurredAt = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  return (
+    <div className="grid gap-2 rounded-2xl border border-[#6366F1]/25 bg-[#6366F1]/8 p-3">
+      <h4 className="text-xs font-semibold text-white">Записать взаимодействие</h4>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <select
+          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          onChange={(event) => {
+            const channel = event.target.value as typeof form.channel
+            const map: Record<string, typeof form.actionType> = {
+              call: 'call_attempt',
+              email: 'message_sent',
+              telegram: 'message_sent',
+              meeting: 'meeting_scheduled',
+            }
+            set({ channel, actionType: map[channel] ?? 'call_attempt' })
+          }}
+          value={form.channel}
+        >
+          <option value="call">звонок</option>
+          <option value="email">письмо</option>
+          <option value="telegram">telegram</option>
+          <option value="meeting">встреча</option>
+        </select>
+        <select
+          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          onChange={(event) => set({ actionType: event.target.value as 'call_attempt' | 'conversation' | 'meeting_scheduled' | 'meeting_held' | 'message_sent' })}
+          value={form.actionType}
+        >
+          <option value="call_attempt">попытка звонка</option>
+          <option value="conversation">состоявшийся разговор</option>
+          <option value="meeting_scheduled">встреча назначена</option>
+          <option value="meeting_held">встреча проведена</option>
+          <option value="message_sent">сообщение отправлено</option>
+        </select>
+        <select
+          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          onChange={(event) => set({ direction: event.target.value as 'outbound' | 'inbound' })}
+          value={form.direction}
+        >
+          <option value="outbound">исходящее</option>
+          <option value="inbound">входящее</option>
+        </select>
+      </div>
+      <Input onChange={(event) => set({ result: event.target.value })} placeholder="Результат (кратко)" value={form.result} />
+      <Textarea onChange={(event) => set({ note: event.target.value })} placeholder="Заметка" rows={2} value={form.note} />
+      <div className="flex gap-2">
+        <Button
+          disabled={disabled}
+          onClick={() => {
+            const activityMap: Record<string, 'call' | 'email' | 'telegram' | 'meeting' | 'other'> = {
+              call: 'call',
+              email: 'email',
+              telegram: 'telegram',
+              meeting: 'meeting',
+            }
+            onSubmit({
+              companyId,
+              occurredAt: occurredAt + ':00+03:00',
+              channel: activityMap[form.channel] ?? 'call',
+              actionType: form.actionType as 'call_attempt' | 'conversation' | 'meeting_scheduled' | 'meeting_held' | 'message_sent',
+              direction: form.direction as 'outbound' | 'inbound',
+              result: form.result.trim() || null,
+              note: form.note.trim() || null,
+            })
+          }}
+          size="sm"
+        >
+          Записать
+        </Button>
+        <Button onClick={onCancel} size="sm" variant="outline">
+          Отмена
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function QuickTaskForm({
+  companyId,
+  assigneeId,
+  disabled,
+  onCancel,
+  onSubmit,
+}: {
+  companyId: string
+  assigneeId: string
+  disabled: boolean
+  onCancel: () => void
+  onSubmit: (input: {
+    companyId: string
+    assigneeId: string
+    goal: string
+    action: string | null
+    dueAt: string | null
+  }) => void
+}) {
+  const [form, setForm] = useState({ goal: '', action: '', dueAt: '' })
+  const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }))
+  const now = new Date()
+  const defaultDue = new Date(now.getTime() + 86400000)
+  const dueAt = new Date(defaultDue.getTime() - defaultDue.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  return (
+    <div className="grid gap-2 rounded-2xl border border-[#6366F1]/25 bg-[#6366F1]/8 p-3">
+      <h4 className="text-xs font-semibold text-white">Коммерческая задача</h4>
+      <Input onChange={(event) => set({ goal: event.target.value })} placeholder="Цель (что сделать) *" value={form.goal} />
+      <Input onChange={(event) => set({ action: event.target.value })} placeholder="Конкретное действие" value={form.action} />
+      <Input
+        onChange={(event) => set({ dueAt: event.target.value })}
+        type="datetime-local"
+        value={form.dueAt || dueAt}
+      />
+      <p className="text-[11px] text-muted-foreground">
+        Срок можно оставить пустым — задача появится в «Сегодня» без жёсткой даты.
+      </p>
+      <div className="flex gap-2">
+        <Button
+          disabled={form.goal.trim() === '' || disabled || assigneeId === ''}
+          onClick={() => {
+            onSubmit({
+              companyId,
+              assigneeId,
+              goal: form.goal.trim(),
+              action: form.action.trim() || null,
+              dueAt: form.dueAt ? form.dueAt + ':00+03:00' : null,
+            })
+          }}
+          size="sm"
+        >
+          Поставить задачу
+        </Button>
+        <Button onClick={onCancel} size="sm" variant="outline">
+          Отмена
+        </Button>
+      </div>
     </div>
   )
 }

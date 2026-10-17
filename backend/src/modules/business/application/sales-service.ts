@@ -194,16 +194,38 @@ export class SalesService {
     }
     try {
       const result = await run()
-      await this.repository.completeIdempotency(
-        actor.userId,
-        operation,
-        actor.idempotencyKey,
-        requestHash,
-        result,
-      )
+      // V2-R03: попытаться зафиксировать результат; при сбое фиксации НЕ освобождать
+      // резерв — мутация уже выполнена, и повтор без резерва создал бы дубль.
+      try {
+        await this.repository.completeIdempotency(
+          actor.userId,
+          operation,
+          actor.idempotencyKey,
+          requestHash,
+          result,
+        )
+      } catch (completionError) {
+        // Фиксация результата не удалась, но мутация уже в БД.
+        // Помечаем резерв как «результат неизвестен»: повтор увидит completed
+        // с маркером и вернёт структурированный unknown-результат, не дублируя мутацию.
+        try {
+          await this.repository.completeIdempotency(
+            actor.userId,
+            operation,
+            actor.idempotencyKey,
+            requestHash,
+            { outcome: 'result_unknown', reason: 'completion failed after mutation' },
+          )
+        } catch {
+          // Даже маркер не записался — резерв остаётся reserved; 60-секундный
+          // takeover в reserveIdempotency предотвратит немедленный дубль.
+        }
+        // Клиент получает успех или управляемую ошибку; итог доступен по operationId.
+        void completionError
+      }
       return result
     } catch (error) {
-      // Сбой/таймаут: резерв снимается, повтор команды корректен и не создаёт дубля.
+      // Мутация НЕ выполнена — резерв можно снять, повтор корректен.
       await this.repository.releaseIdempotency(actor.userId, operation, actor.idempotencyKey)
       throw error
     }
@@ -432,6 +454,22 @@ export class SalesService {
   }
 
   async createContact(input: CreateContactRequest, actor: ActorContext): Promise<Contact> {
+    // V2-R05: чувствительные поля блокируются при создании тоже, не только при update.
+    if (this.isAgent(actor)) {
+      if (input.status === 'confirmed' || input.directRoleConfirmed === true) {
+        const message =
+          'Агент не может создавать контакты с подтверждённым статусом или подтверждённой ролью — только человек'
+        await this.logAgentOp(actor, 'contact.create', null, false, message)
+        throw new BusinessFailure('forbidden', message)
+      }
+      for (const channel of input.channels ?? []) {
+        if (channel.status === 'confirmed') {
+          const message = 'Агент не может создавать каналы с подтверждённым статусом'
+          await this.logAgentOp(actor, 'contact.create', null, false, message)
+          throw new BusinessFailure('forbidden', message)
+        }
+      }
+    }
     const created = await this.withIdempotency(actor, 'contact.create', input, () =>
       this.repository.createContact(input),
     )
@@ -1267,6 +1305,12 @@ export class SalesService {
     // Разрешение на публичный кейс — отдельное полномочие (AGENT-03-AC02).
     if (input.caseStudyAllowed === true) {
       await this.assertCapability(actor, CAP.caseAllow, 'launch.caseStudy')
+    }
+    // V2-R05: принятие первого сценария — факт клиента, агенту запрещено без права.
+    if (this.isAgent(actor) && input.firstScenarioAcceptedOn !== undefined && input.firstScenarioAcceptedOn !== null) {
+      const message = 'Агент не может фиксировать принятие первого сценария запуска — только человек'
+      await this.logAgentOp(actor, 'launch.accept', dealId, false, message)
+      throw new BusinessFailure('forbidden', message)
     }
     return this.repository.upsertLaunch(dealId, input)
   }

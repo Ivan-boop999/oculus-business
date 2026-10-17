@@ -367,6 +367,7 @@ function RoleSelect({
           User
         </SelectItem>
         <SelectItem value="admin">Admin</SelectItem>
+        <SelectItem value="agent">Agent</SelectItem>
       </SelectContent>
     </Select>
   )

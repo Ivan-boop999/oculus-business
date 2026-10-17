@@ -1331,6 +1331,19 @@ export function createSalesRepository(db: DbClient): SalesRepositoryBase {
       if (existing !== null && input.expectedVersion !== undefined && input.expectedVersion !== existing.rowVersion) {
         throw new BusinessFailure('conflict', 'Карточка пилота изменена — перечитайте и повторите')
       }
+      // V2-R06: атомарная условная запись — два параллельных PUT одной версии дают 200/409.
+      if (existing !== null && input.expectedVersion !== undefined) {
+        const count = await db.pilotEvaluation.updateMany({
+          where: { dealId, rowVersion: input.expectedVersion },
+          data: { ...data, rowVersion: { increment: 1 } } as never,
+        })
+        if (count.count === 0) {
+          throw new BusinessFailure('conflict', 'Карточка пилота изменена — перечитайте и повторите')
+        }
+        const updated = await db.pilotEvaluation.findUniqueOrThrow({ where: { dealId }, include: pilotInclude })
+        const users = await db.user.findMany({ select: { id: true, displayName: true } })
+        return mapPilotDto(updated, new Map(users.map((u) => [u.id, u.displayName])))
+      }
       const row = await db.pilotEvaluation.upsert({
         where: { dealId },
         update: { ...data, rowVersion: { increment: 1 } },
@@ -1499,6 +1512,21 @@ export function createSalesRepository(db: DbClient): SalesRepositoryBase {
       const existing = await db.dealLaunch.findUnique({ where: { dealId }, select: { rowVersion: true } })
       if (existing !== null && input.expectedVersion !== undefined && input.expectedVersion !== existing.rowVersion) {
         throw new BusinessFailure('conflict', 'Карточка запуска изменена — перечитайте и повторите')
+      }
+      // V2-R06: атомарная условная запись — два параллельных PUT одной версии дают 200/409.
+      if (existing !== null && input.expectedVersion !== undefined) {
+        const count = await db.dealLaunch.updateMany({
+          where: { dealId, rowVersion: input.expectedVersion },
+          data: { ...data, rowVersion: { increment: 1 } } as never,
+        })
+        if (count.count === 0) {
+          throw new BusinessFailure('conflict', 'Карточка запуска изменена — перечитайте и повторите')
+        }
+        const updated = await db.dealLaunch.findUniqueOrThrow({
+          where: { dealId },
+          include: { launchOwner: { select: { displayName: true } } },
+        })
+        return mapLaunchDto(updated)
       }
       const row = await db.dealLaunch.upsert({
         where: { dealId },
