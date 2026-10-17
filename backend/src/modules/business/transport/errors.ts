@@ -10,6 +10,9 @@ export function toBusinessAppError(error: unknown) {
   if (error.kind === 'conflict') {
     return new AppError(409, 'CONFLICT', error.message)
   }
+  if (error.kind === 'forbidden') {
+    return new AppError(403, 'FORBIDDEN', error.message)
+  }
   return new AppError(400, 'VALIDATION_ERROR', error.message)
 }
 

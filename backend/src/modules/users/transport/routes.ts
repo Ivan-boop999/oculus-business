@@ -4,6 +4,8 @@ import {
   adminUsersQuerySchema,
   adminUsersResponseSchema,
   apiErrorSchema,
+  updateAgentPermissionsRequestSchema,
+  updateAgentPermissionsResponseSchema,
   updateProfileRequestSchema,
   updateProfileResponseSchema,
   updateUserRoleRequestSchema,
@@ -112,6 +114,35 @@ const updateRoleRoute = createRoute({
   },
 })
 
+const updateAgentPermissionsRoute = createRoute({
+  method: 'put',
+  path: '/users/{userId}/agent-permissions',
+  security: bearerSecurity,
+  request: {
+    params: adminUserParamsSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: updateAgentPermissionsRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: updateAgentPermissionsResponseSchema } },
+      description: 'Updated agent permissions',
+    },
+    400: { content: errorContent, description: 'Invalid payload' },
+    401: { content: errorContent, description: 'Authentication required' },
+    403: { content: errorContent, description: 'Administrator access required' },
+    404: { content: errorContent, description: 'User not found' },
+    409: { content: errorContent, description: 'Target is not an agent' },
+    413: { content: errorContent, description: 'Request body is too large' },
+    429: { content: errorContent, description: 'Too many requests' },
+  },
+})
+
 type CreateUsersRoutesOptions = {
   adminUsersReadRateLimit: MiddlewareHandler<AuthHttpEnv>
   requireAdmin: MiddlewareHandler<AuthHttpEnv>
@@ -152,6 +183,17 @@ export function createUsersRoutes({
       ),
     )
     return c.json(result, 200)
+  })
+
+  adminRoutes.openapi(updateAgentPermissionsRoute, async (c) => {
+    const result = await executeUsers(() =>
+      service.updateAgentPermissions(
+        c.var.user,
+        c.req.valid('param').userId,
+        c.req.valid('json').permissions,
+      ),
+    )
+    return c.json(updateAgentPermissionsResponseSchema.parse(result), 200)
   })
 
   return { adminRoutes, userRoutes }

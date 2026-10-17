@@ -33,6 +33,7 @@ export function CrmBoardPage() {
   const [mineOnly, setMineOnly] = useState(false)
   const [lostPromptStageId, setLostPromptStageId] = useState<string | null>(null)
   const [calendarMode, setCalendarMode] = useState(false)
+  const [moveError, setMoveError] = useState<string | null>(null)
   const { user } = useAuth()
 
   if (board.isPending) {
@@ -72,11 +73,25 @@ export function CrmBoardPage() {
         return
       }
     }
-    moveDeal.mutate({ id: dealId, stageId: stage.id, position: stage.deals.length })
+    moveDeal.mutate(
+      { id: dealId, stageId: stage.id, position: stage.deals.length },
+      {
+        onError: (caught) =>
+          setMoveError(caught instanceof Error ? caught.message : 'Переход отклонён сервером'),
+      },
+    )
   }
 
   return (
     <div className="grid gap-3">
+      {moveError !== null && (
+        <div className="flex items-start gap-2 rounded-xl border border-[#F43F5E]/30 bg-[#F43F5E]/8 px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1 text-[#FB7185]">{moveError}</span>
+          <button className="shrink-0 text-xs text-muted-foreground hover:text-white" onClick={() => setMoveError(null)}>
+            ✕
+          </button>
+        </div>
+      )}
       <BoardHeader
         calendarMode={calendarMode}
         mineOnly={mineOnly}
@@ -260,9 +275,11 @@ function BoardHeader({
     (sum, stage) => sum + stage.deals.reduce((s, deal) => s + deal.monthlyAmount, 0),
     0,
   )
+  // MRR — из активных подписок (как в финансах), а не из won-этапа (CRM-11/§8.4).
   const mrr = stages
-    .filter((stage) => stage.isWon)
-    .reduce((sum, stage) => sum + stage.deals.reduce((s, deal) => s + deal.monthlyAmount, 0), 0)
+    .flatMap((stage) => stage.deals)
+    .filter((deal) => deal.subStatus === 'active')
+    .reduce((sum, deal) => sum + deal.monthlyAmount, 0)
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">

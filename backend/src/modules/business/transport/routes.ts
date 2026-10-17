@@ -14,9 +14,6 @@ import {
   cashflowHistoryResponseSchema,
   createExpectedPaymentRequestSchema,
   createTxnRequestSchema,
-  companiesResponseSchema,
-  companyResponseSchema,
-  createCompanyRequestSchema,
   crmBoardResponseSchema,
   crmReportResponseSchema,
   dealHistoryResponseSchema,
@@ -61,7 +58,9 @@ import type { z } from 'zod'
 import { validationErrorHook } from '../../../http/errors'
 import type { AuthHttpEnv } from '../../auth'
 import type { BusinessService } from '../application/business-service'
+import type { SalesService } from '../application/sales-service'
 import { executeBusiness } from './errors'
+import { actorOf, createSalesRoutes } from './sales-routes'
 
 const errorContent = { 'application/json': { schema: apiErrorSchema } }
 
@@ -136,27 +135,6 @@ const deleteDealRoute = createRoute({
     204: { description: 'Deleted' },
     401: { content: errorContent, description: 'Authentication required' },
     404: { content: errorContent, description: 'Not found' },
-  },
-})
-
-const companiesRoute = createRoute({
-  method: 'get',
-  path: '/companies',
-  security: bearerSecurity,
-  responses: {
-    200: { content: json(companiesResponseSchema), description: 'Companies with stats' },
-    401: { content: errorContent, description: 'Authentication required' },
-  },
-})
-
-const createCompanyRoute = createRoute({
-  method: 'post',
-  path: '/companies',
-  security: bearerSecurity,
-  request: { body: { content: json(createCompanyRequestSchema) } },
-  responses: {
-    201: { content: json(companyResponseSchema), description: 'Created company' },
-    ...standardErrors,
   },
 })
 
@@ -674,9 +652,10 @@ const dashboardRoute = createRoute({
 type CreateBusinessRoutesOptions = {
   requireAuth: MiddlewareHandler<AuthHttpEnv>
   service: BusinessService
+  salesService: SalesService
 }
 
-export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRoutesOptions) {
+export function createBusinessRoutes({ requireAuth, service, salesService }: CreateBusinessRoutesOptions) {
   const crm = new OpenAPIHono<AuthHttpEnv>({ defaultHook: validationErrorHook })
   const dev = new OpenAPIHono<AuthHttpEnv>({ defaultHook: validationErrorHook })
   const finance = new OpenAPIHono<AuthHttpEnv>({ defaultHook: validationErrorHook })
@@ -686,38 +665,48 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     router.use('*', requireAuth)
   }
 
+  // B2B-продажи: новые маршруты CRM/финансов монтируются в те же префиксы (§8.7).
+  const sales = createSalesRoutes({ requireAuth, salesService })
+  crm.route('/', sales.salesCrm)
+  finance.route('/', sales.salesFinance)
+
   crm.openapi(crmBoardRoute, async (c) => {
     return c.json(await executeBusiness(() => service.crmBoard()), 200)
   })
   crm.openapi(createDealRoute, async (c) => {
     const deal = await executeBusiness(() =>
-      service.createDeal(c.req.valid('json'), c.var.user.id),
+      salesService.createDeal(c.req.valid('json'), actorOf(c, c.req.raw.headers)),
     )
     return c.json({ deal }, 201)
   })
   crm.openapi(updateDealRoute, async (c) => {
     const deal = await executeBusiness(() =>
-      service.updateDeal(c.req.valid('param').id, c.req.valid('json')),
+      salesService.updateDeal(c.req.valid('param').id, c.req.valid('json'), actorOf(c, c.req.raw.headers)),
     )
     return c.json({ deal }, 200)
   })
   crm.openapi(moveDealRoute, async (c) => {
     const body = c.req.valid('json')
     const deal = await executeBusiness(() =>
-      service.moveDeal(c.req.valid('param').id, body.stageId, body.position),
+      salesService.transition(
+        c.req.valid('param').id,
+        {
+          stageId: body.stageId,
+          position: body.position,
+          reason: body.reason ?? null,
+          overrideReason: body.overrideReason ?? null,
+        },
+        actorOf(c, c.req.raw.headers),
+        body.expectedVersion,
+      ),
     )
     return c.json({ deal }, 200)
   })
   crm.openapi(deleteDealRoute, async (c) => {
-    await executeBusiness(() => service.deleteDeal(c.req.valid('param').id))
+    await executeBusiness(() =>
+      salesService.deleteDeal(c.req.valid('param').id, actorOf(c, c.req.raw.headers)),
+    )
     return c.body(null, 204)
-  })
-  crm.openapi(companiesRoute, async (c) => {
-    return c.json(await executeBusiness(() => service.companies()), 200)
-  })
-  crm.openapi(createCompanyRoute, async (c) => {
-    const company = await executeBusiness(() => service.createCompany(c.req.valid('json')))
-    return c.json({ company }, 201)
   })
   crm.openapi(dealCommentsRoute, async (c) => {
     return c.json({ comments: await executeBusiness(() => service.dealComments(c.req.valid('param').id)) }, 200)
@@ -730,16 +719,19 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     return c.json({ comments }, 201)
   })
   crm.openapi(createStageRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'crm.stages', 'POST'))
     const stage = await executeBusiness(() => service.createStage(c.req.valid('json')))
     return c.json({ stage }, 201)
   })
   crm.openapi(updateStageRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'crm.stages', 'PATCH'))
     const stage = await executeBusiness(() =>
       service.updateStage(c.req.valid('param').id, c.req.valid('json')),
     )
     return c.json({ stage }, 200)
   })
   crm.openapi(deleteStageRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'crm.stages', 'DELETE'))
     await executeBusiness(() => service.deleteStage(c.req.valid('param').id))
     return c.body(null, 204)
   })
@@ -823,16 +815,19 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     return c.json(await executeBusiness(() => service.txns(month)), 200)
   })
   finance.openapi(createTxnRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.txns', 'POST'))
     const txn = await executeBusiness(() => service.createTxn(c.req.valid('json'), c.var.user.id))
     return c.json({ txn }, 201)
   })
   finance.openapi(updateTxnRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.txns', 'PATCH'))
     const txn = await executeBusiness(() =>
       service.updateTxn(c.req.valid('param').id, c.req.valid('json')),
     )
     return c.json({ txn }, 200)
   })
   finance.openapi(deleteTxnRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.txns', 'DELETE'))
     await executeBusiness(() => service.deleteTxn(c.req.valid('param').id))
     return c.body(null, 204)
   })
@@ -840,18 +835,21 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     return c.json(await executeBusiness(() => service.recurringItems()), 200)
   })
   finance.openapi(createRecurringRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.recurring', 'POST'))
     const item = await executeBusiness(() =>
       service.createRecurring(c.req.valid('json'), c.var.user.id),
     )
     return c.json({ item }, 201)
   })
   finance.openapi(updateRecurringRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.recurring', 'PATCH'))
     const item = await executeBusiness(() =>
       service.updateRecurring(c.req.valid('param').id, c.req.valid('json')),
     )
     return c.json({ item }, 200)
   })
   finance.openapi(deleteRecurringRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.recurring', 'DELETE'))
     await executeBusiness(() => service.deleteRecurring(c.req.valid('param').id))
     return c.body(null, 204)
   })
@@ -859,6 +857,7 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     return c.json({ settings: await executeBusiness(() => service.settings()) }, 200)
   })
   finance.openapi(updateSettingsRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.settings', 'PUT'))
     const settings = await executeBusiness(() => service.saveSettings(c.req.valid('json')))
     return c.json({ settings }, 200)
   })
@@ -887,21 +886,26 @@ export function createBusinessRoutes({ requireAuth, service }: CreateBusinessRou
     return c.json(await executeBusiness(() => service.expectedPayments()), 200)
   })
   finance.openapi(createExpectedRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.expected', 'POST'))
     const payment = await executeBusiness(() => service.createExpectedPayment(c.req.valid('json')))
     return c.json({ payment }, 201)
   })
   finance.openapi(updateExpectedRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.expected', 'PATCH'))
     const payment = await executeBusiness(() =>
       service.updateExpectedPayment(c.req.valid('param').id, c.req.valid('json')),
     )
     return c.json({ payment }, 200)
   })
   finance.openapi(deleteExpectedRoute, async (c) => {
+    await executeBusiness(() => salesService.assertRouteAllowed(actorOf(c, c.req.raw.headers), 'finance.expected', 'DELETE'))
     await executeBusiness(() => service.deleteExpectedPayment(c.req.valid('param').id))
     return c.body(null, 204)
   })
   finance.openapi(expectedReceivedRoute, async (c) => {
-    await executeBusiness(() => service.markExpectedReceived(c.req.valid('param').id, c.var.user.id))
+    await executeBusiness(() =>
+      salesService.receiveRemaining(c.req.valid('param').id, actorOf(c, c.req.raw.headers)),
+    )
     return c.body(null, 204)
   })
   finance.openapi(forecastRoute, async (c) => {

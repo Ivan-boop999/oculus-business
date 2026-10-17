@@ -7,6 +7,8 @@ import type { UserRole } from '@oculus-business/contracts'
 export const workspaceRoutesByRole = {
   user: [
     '/app',
+    '/app/today',
+    '/app/drafts',
     '/app/crm',
     '/app/companies',
     '/app/crm/report',
@@ -22,6 +24,8 @@ export const workspaceRoutesByRole = {
     '/admin/users',
     '/admin/settings',
   ],
+  // Агентская учётная запись работает только через REST (CRM-08): маршрутов веб-интерфейса нет.
+  agent: [],
 } as const satisfies Record<UserRole, ReadonlyArray<`/${string}`>>
 
 type WorkspaceRouteTable = Record<UserRole, ReadonlyArray<string>>

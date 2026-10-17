@@ -95,6 +95,18 @@ const adminSettingsRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages'), 'AdminSettingsPage'),
 })
 
+const userTodayRoute = createRoute({
+  getParentRoute: () => userWorkspaceRoute,
+  path: '/app/today',
+  component: lazyRouteComponent(() => import('./pages'), 'TodayPage'),
+})
+
+const userDraftsRoute = createRoute({
+  getParentRoute: () => userWorkspaceRoute,
+  path: '/app/drafts',
+  component: lazyRouteComponent(() => import('./pages'), 'DraftsPage'),
+})
+
 const userCrmRoute = createRoute({
   getParentRoute: () => userWorkspaceRoute,
   path: '/app/crm',
@@ -145,6 +157,8 @@ const routeTree = rootRoute.addChildren([
   resetPasswordRoute,
   userWorkspaceRoute.addChildren([
     userHomeRoute,
+    userTodayRoute,
+    userDraftsRoute,
     userCrmRoute,
     userCompaniesRoute,
     userCrmReportRoute,

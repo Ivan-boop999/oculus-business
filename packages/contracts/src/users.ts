@@ -42,6 +42,7 @@ export const adminUserSummarySchema = z
     email: emailSchema,
     displayName: z.string().nullable(),
     role: userRoleSchema,
+    agentPermissions: z.array(z.string()),
     createdAt: z.string().datetime(),
   })
   .strict()
@@ -67,6 +68,37 @@ export const adminDashboardResponseSchema = z
 export const updateUserRoleRequestSchema = z
   .object({
     role: userRoleSchema,
+  })
+  .strict()
+
+/// AGENT-01-AC01: набор прав агентской записи — выдача и отзыв через админ-API.
+export const agentCapabilitySchema = z.enum([
+  'finance.confirm',
+  'won.confirm',
+  'deal.delete',
+  'subscription.manage',
+  'pricing.change',
+  'claim.confirm',
+  'draft.approve',
+  'pilot.decide',
+  'case.allow',
+])
+
+export const updateAgentPermissionsRequestSchema = z
+  .object({
+    permissions: z.array(agentCapabilitySchema).max(20),
+  })
+  .strict()
+
+export const updateAgentPermissionsResponseSchema = z
+  .object({
+    user: z.object({
+      id: z.string(),
+      email: emailSchema,
+      displayName: z.string().nullable(),
+      role: userRoleSchema,
+      agentPermissions: z.array(agentCapabilitySchema),
+    }),
   })
   .strict()
 

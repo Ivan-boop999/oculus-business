@@ -23,7 +23,13 @@ import {
 import { homePathForRole, safeReturnPath } from '@/features/navigation'
 import { UserProfile, UserSettings } from '@/features/users'
 import { DashboardPage } from '@/features/dashboard'
-import { CompaniesPage as CompaniesScreen, CrmBoardPage as CrmBoardScreen, CrmReportPage as CrmReportScreen } from '@/features/crm'
+import {
+  CompaniesPage as CompaniesScreen,
+  CrmBoardPage as CrmBoardScreen,
+  CrmReportPage as CrmReportScreen,
+  DraftsPage as DraftsScreen,
+  TodayPage as TodayScreen,
+} from '@/features/crm'
 import { FinancePage as FinanceScreen, ForecastPage as ForecastScreen, RecurringPage as RecurringScreen } from '@/features/finance'
 import { DevBoardPage as DevBoardScreen } from '@/features/devboard'
 
@@ -116,6 +122,14 @@ export function CrmReportPage() {
 
 export function CompaniesPage() {
   return <CompaniesScreen />
+}
+
+export function TodayPage() {
+  return <TodayScreen />
+}
+
+export function DraftsPage() {
+  return <DraftsScreen />
 }
 
 export function FinancePage() {

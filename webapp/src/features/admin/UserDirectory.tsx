@@ -57,6 +57,7 @@ import {
   useUpdateAdminUserRoleMutation,
 } from './queries'
 import { RoleChangeDialog } from './RoleChangeDialog'
+import { AgentPermissionsDialog } from './AgentPermissionsDialog'
 
 type PendingRoleChange = {
   role: UserRole
@@ -66,6 +67,7 @@ type PendingRoleChange = {
 type DirectoryRowsProps = {
   currentUser: UserDto
   isRoleChangePending: boolean
+  onPermissions: (user: AdminUserSummary) => void
   onRoleChange: (user: AdminUserSummary, role: UserRole) => void
   users: ReadonlyArray<AdminUserSummary>
 }
@@ -81,6 +83,7 @@ export function UserDirectory({ currentUser }: { currentUser: UserDto }) {
   const [draftQuery, setDraftQuery] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
+  const [permissionsUser, setPermissionsUser] = useState<AdminUserSummary | null>(null)
   const [pendingRole, setPendingRole] = useState<PendingRoleChange | null>(null)
   const fitsTable = useMediaQuery(tableViewportQuery)
   const usersQuery = useAdminUsersQuery({
@@ -179,6 +182,7 @@ export function UserDirectory({ currentUser }: { currentUser: UserDto }) {
               <UserTable
                 currentUser={currentUser}
                 isRoleChangePending={roleMutation.isPending}
+                onPermissions={setPermissionsUser}
                 onRoleChange={requestRoleChange}
                 users={usersQuery.data.items}
               />
@@ -186,6 +190,7 @@ export function UserDirectory({ currentUser }: { currentUser: UserDto }) {
               <UserList
                 currentUser={currentUser}
                 isRoleChangePending={roleMutation.isPending}
+                onPermissions={setPermissionsUser}
                 onRoleChange={requestRoleChange}
                 users={usersQuery.data.items}
               />
@@ -193,6 +198,10 @@ export function UserDirectory({ currentUser }: { currentUser: UserDto }) {
           )}
         </DataTableFrame>
       </div>
+
+      {permissionsUser !== null && (
+        <AgentPermissionsDialog user={permissionsUser} onClose={() => setPermissionsUser(null)} />
+      )}
 
       <RoleChangeDialog
         failureReason={mutationFeedback?.kind === 'error' ? mutationFeedback.reason : null}
@@ -211,6 +220,7 @@ export function UserDirectory({ currentUser }: { currentUser: UserDto }) {
 function UserTable({
   currentUser,
   isRoleChangePending,
+  onPermissions,
   onRoleChange,
   users,
 }: DirectoryRowsProps) {
@@ -237,12 +247,19 @@ function UserTable({
               </div>
             </TableCell>
             <TableCell>
-              <RoleSelect
-                currentUser={currentUser}
-                disabled={isRoleChangePending}
-                onRoleChange={onRoleChange}
-                user={user}
-              />
+              <div className='flex items-center gap-2'>
+                <RoleSelect
+                  currentUser={currentUser}
+                  disabled={isRoleChangePending}
+                  onRoleChange={onRoleChange}
+                  user={user}
+                />
+                {user.role === 'agent' && (
+                  <Button onClick={() => onPermissions(user)} size='sm' variant='outline'>
+                    Права
+                  </Button>
+                )}
+              </div>
             </TableCell>
             <TableCell>
               <Typography as="span" className="tabular-nums" variant="bodySm">

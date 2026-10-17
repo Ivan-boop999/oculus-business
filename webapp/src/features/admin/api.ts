@@ -1,3 +1,15 @@
+export const AGENT_CAPABILITY_LABELS: Record<string, string> = {
+  'finance.confirm': 'Подтверждение денег',
+  'won.confirm': 'Фиксация выигрыша',
+  'deal.delete': 'Удаление сделок',
+  'subscription.manage': 'Управление подписками',
+  'pricing.change': 'Изменение цен',
+  'claim.confirm': 'Подтверждение фактов клиента',
+  'draft.approve': 'Одобрение и отправка КП',
+  'pilot.decide': 'Решение по пилоту',
+  'case.allow': 'Разрешение публичного кейса',
+}
+
 import {
   adminDashboardResponseSchema,
   adminUsersQuerySchema,
@@ -44,4 +56,15 @@ export function updateAdminUserRole(
       body: updateUserRoleRequestSchema.parse(input),
     },
   )
+}
+
+export function updateAgentPermissions(
+  transport: AuthenticatedTransport,
+  userId: string,
+  permissions: string[],
+) {
+  return transport.raw('/api/admin/users/' + userId + '/agent-permissions', {
+    method: 'PUT',
+    body: JSON.stringify({ permissions }),
+  })
 }

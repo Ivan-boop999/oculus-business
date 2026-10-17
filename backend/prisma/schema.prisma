@@ -13,6 +13,9 @@ model User {
   passwordHash String?       @map("password_hash")
   displayName  String?       @map("display_name")
   role         UserRole      @default(user)
+  /// Для role=agent: список отдельно выданных прав (например ["finance.confirm"]).
+  /// Проверяется на сервере в бизнес-модуле; пустой список = только базовый агентский доступ.
+  agentPermissions Json       @default("[]") @map("agent_permissions")
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
   sessions            AuthSession[]
@@ -25,6 +28,12 @@ model User {
   txns                Txn[]
   recurringItems      RecurringItem[]
   lastSeenNotificationsAt DateTime? @map("last_seen_notifications_at")
+  ownedDeals          Deal[]           @relation("DealOwner")
+  ownedCompanies      Company[]        @relation("CompanyOwner")
+  assignedSalesTasks  SalesTask[]
+  activities          Activity[]
+  pilotsOwned         PilotEvaluation[]
+  launchesOwned       DealLaunch[]
 
   @@index([role], map: "users_role_idx")
   @@map("users")
@@ -36,21 +45,30 @@ model User {
 
 /// Этап воронки сделок. `isWon`/`isLost` — терминальная семантика: сделка на этапе с isWon
 /// считается действующим клиентом и её monthly_amount попадает в MRR и прогноз доходов.
+/// `code` — стабильный machine-code для правил и отчётов (не зависит от переименования),
+/// `semanticType` — семантика этапа для серверных правил переходов и отчётов:
+/// intake | research | dialogue | qualified | solution_check | proposal | contract | won | lost | paused | other.
 model CrmStage {
-  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  title     String
-  position  Int
-  isWon     Boolean  @default(false) @map("is_won")
-  isLost    Boolean  @default(false) @map("is_lost")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  deals     Deal[]
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  title        String
+  position     Int
+  isWon        Boolean  @default(false) @map("is_won")
+  isLost       Boolean  @default(false) @map("is_lost")
+  code         String   @default("") @map("code")
+  semanticType String   @default("other") @map("semantic_type")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  deals        Deal[]
 
+  @@index([semanticType], map: "crm_stages_semantic_type_idx")
   @@map("crm_stages")
 }
 
 /// Сделка. Суммы — целые рубли: one_time_amount (разовая, например пилот 495 000),
 /// monthly_amount (ежемесячная подписка). Позиция — порядок внутри этапа канбана.
+/// Квалификация (CRM-05): текстовые поля + статусы критических утверждений в DealClaim.
+/// Деньги/подписка (CRM-11): won — зафиксированное коммерческое решение (wonAt/wonBasis),
+/// активная подписка — subStatus/subStartsOn/subEndsOn, а не факт нахождения на этапе.
 model Deal {
   id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   title           String
@@ -71,43 +89,580 @@ model Deal {
   createdById     String    @map("created_by_id") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
+  // --- Ответственный (CRM-03): отдельно от createdById — кому принадлежит сделка сейчас.
+  ownerId         String?   @map("owner_id") @db.Uuid
+  // --- Квалификация (CRM-05), все поля необязательные — заполняются по этапам.
+  direction       String?
+  scenario        String?
+  currentProcess  String?   @map("current_process")
+  problemStatement String?  @map("problem_statement")
+  consequences    String?
+  baseline        String?
+  measurementMethod String? @map("measurement_method")
+  assumptions     String?
+  desiredOutcome  String?   @map("desired_outcome")
+  priority        String?
+  priorityEvent   String?   @map("priority_event")
+  economicBuyerStatus String? @map("economic_buyer_status")
+  selectionCriteria String? @map("selection_criteria")
+  decisionProcess String?   @map("decision_process")
+  techConstraints String?   @map("tech_constraints")
+  priceAnchor     Int?      @map("price_anchor")
+  priceReaction   String?   @map("price_reaction")
+  nextAgreedStep  String?   @map("next_agreed_step")
+  // --- Пауза (§6 ТЗ): причина и событие/дата возврата обязательны на сервере при переходе.
+  pausedReason    String?   @map("paused_reason")
+  resumeCondition String?   @map("resume_condition")
+  resumeOn        DateTime? @map("resume_on") @db.Date
+  // --- Коммерческое решение и подписка (CRM-11).
+  wonAt           DateTime? @map("won_at")
+  wonBasis        String?   @map("won_basis")
+  wonById         String?   @map("won_by_id") @db.Uuid
+  signedAt        DateTime? @map("signed_at") @db.Date
+  implementationStartPlan DateTime? @map("implementation_start_plan") @db.Date
+  implementationStartFact DateTime? @map("implementation_start_fact") @db.Date
+  activationAt    DateTime? @map("activation_at")
+  subStatus       String    @default("none") @map("sub_status")
+  subStartsOn     DateTime? @map("sub_starts_on") @db.Date
+  subEndsOn       DateTime? @map("sub_ends_on") @db.Date
+  /// Контроль конкуренции (CRM-08): обновление с устаревшей версией → конфликт.
+  version         Int       @default(1)
+  /// Партнёр-источник возможности (OWNER-05): ссылка на Company-партнёра, не на конечного клиента.
+  partnerCompanyId String?   @map("partner_company_id") @db.Uuid
   stage           CrmStage      @relation(fields: [stageId], references: [id], map: "deals_stage_id_fkey")
   company         Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull, map: "deals_company_id_fkey")
   createdBy       User          @relation(fields: [createdById], references: [id], map: "deals_created_by_id_fkey")
+  owner           User?         @relation("DealOwner", fields: [ownerId], references: [id], map: "deals_owner_id_fkey")
   comments        DealComment[]
   history         DealHistory[]
   devTasks        DevTask[]
   expectedPayments ExpectedPayment[]
+  claims          DealClaim[]
+  contactRoles    DealContactRole[]
+  drafts          ProposalDraft[]
+  pilot           PilotEvaluation?
+  launch          DealLaunch?
+  taskLinks       SalesTask[]
+  activityLinks   Activity[]
+  txns            Txn[]
+  partnerCompany  Company?  @relation("DealPartnerSource", fields: [partnerCompanyId], references: [id], map: "deals_partner_company_id_fkey")
+  partnerAgreement PartnerAgreement?
 
   @@index([stageId, position], map: "deals_stage_position_idx")
   @@index([nextActionAt], map: "deals_next_action_at_idx")
+  @@index([ownerId], map: "deals_owner_id_idx")
+  @@index([subStatus], map: "deals_sub_status_idx")
   @@map("deals")
 }
 
 /// Контрагент: компания клиента. Название сделки остаётся заголовком карточки,
 /// companyId связывает несколько сделок одного клиента.
+/// Расширение B2B-продаж (CRM-01): компания существует до сделки — исследование,
+/// источник нахождения, статус исследования и отношение; запрет контакта (CRM-04) хранится
+/// отдельно от relationStatus. Источник поиска (researchSource) и источник контакта
+/// (contactSource) разделены (§4.3 ТЗ).
 model Company {
   id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   name      String   @unique
   note      String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  website   String?
+  /// Нормализованный домен (нижний регистр, без www) — сигнал дубля, не ключ слияния юрлиц.
+  domain    String?
+  /// Проверенный ИНН — сильный ключ юрлица; null = не проверен.
+  inn       String?
+  region    String?
+  segment   String?
+  processDescription String? @map("process_description")
+  researchSource String? @map("research_source")
+  researchedAt    DateTime? @map("researched_at")
+  /// selected | reaching | dialogue | nurture | disqualified
+  researchStatus  String @default("selected") @map("research_status")
+  /// prospect | customer | partner | excluded
+  relationStatus  String @default("prospect") @map("relation_status")
+  selectionReason String? @map("selection_reason")
+  exclusionReason String? @map("exclusion_reason")
+  ownerId   String?  @map("owner_id") @db.Uuid
+  cohortVersion String? @map("cohort_version")
+  contactSource String? @map("contact_source")
+  /// Внешний идентификатор импорта (например pipeline:account-001) — идемпотентность импорта.
+  externalId String? @unique @map("external_id")
+  // --- Запрет на контакт (CRM-04). scope: all | commercial (техническая переписка
+  // по действующему договору при scope=commercial не блокируется).
+  doNotContact Boolean @default(false) @map("do_not_contact")
+  dncReason    String? @map("dnc_reason")
+  dncAt        DateTime? @map("dnc_at")
+  dncScope     String @default("all") @map("dnc_scope")
+  dncSource    String? @map("dnc_source")
+  dncSetById   String? @map("dnc_set_by_id") @db.Uuid
+  dncLiftedAt  DateTime? @map("dnc_lifted_at")
+  dncLiftedReason String? @map("dnc_lifted_reason")
+  dncLiftedById String? @map("dnc_lifted_by_id") @db.Uuid
   deals     Deal[]
+  owner     User?   @relation("CompanyOwner", fields: [ownerId], references: [id], map: "companies_owner_id_fkey")
+  contacts  Contact[]
+  activities Activity[]
+  tasks     SalesTask[]
+  events    CompanyEvent[]
+  drafts    ProposalDraft[]
+  partnerDeals Deal[] @relation("DealPartnerSource")
+  facts     CompanyFact[]
+  /// Контроль конкуренции (FIX-05): условный атомарный UPDATE по версии.
+  version   Int     @default(1)
 
+  @@index([domain], map: "companies_domain_idx")
+  @@index([researchStatus], map: "companies_research_status_idx")
+  @@index([relationStatus], map: "companies_relation_status_idx")
   @@map("companies")
 }
 
+/// Структурированный факт исследования (AGENT-03-AC01): утверждение, источник, дата наблюдения,
+/// автор/runId, статус hypothesis/public_fact/customer_confirmed/unknown и основание.
+model CompanyFact {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  claim      String
+  sourceUrl  String?  @map("source_url")
+  observedAt DateTime @map("observed_at")
+  authorId   String?  @map("author_id") @db.Uuid
+  runId      String?
+  /// hypothesis | public_fact | customer_confirmed | unknown
+  status     String   @default("hypothesis")
+  basis      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "company_facts_company_id_fkey")
+
+  @@index([companyId], map: "company_facts_company_id_idx")
+  @@map("company_facts")
+}
+
+/// Условия партнёрской договорённости по возможности (OWNER-05-AC02): статус proposed/agreed,
+/// ставка, база расчёта, период, момент выплаты, документ, ответственный. Не автосписание.
+model PartnerAgreement {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  dealId          String   @unique @map("deal_id") @db.Uuid
+  partnerCompanyId String  @map("partner_company_id") @db.Uuid
+  partnerContactId String? @map("partner_contact_id") @db.Uuid
+  /// proposed | agreed
+  status          String   @default("proposed")
+  /// Ставка в сотых долях процента (3000 = 30,00%).
+  rateBps         Int?
+  /// База расчёта: разовый платёж / подписка / продление — текстом.
+  calculationBase String?  @map("calculation_base")
+  periodNotes     String?  @map("period_notes")
+  payoutTrigger   String?  @map("payout_trigger")
+  documentRef     String?  @map("document_ref")
+  ownerId         String?  @map("owner_id") @db.Uuid
+  rowVersion      Int      @default(1) @map("row_version")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  deal            Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade, map: "partner_agreements_deal_id_fkey")
+
+  @@index([partnerCompanyId], map: "partner_agreements_partner_idx")
+  @@map("partner_agreements")
+}
+
+/// Журнал решений по компании: запрет/снятие запрета, исключение/восстановление (CRM-04-AC03/AC04).
+model CompanyEvent {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  /// dnc_set | dnc_lifted | excluded | restored | other
+  kind      String
+  reason    String?
+  authorId  String   @map("author_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "company_events_company_id_fkey")
+
+  @@index([companyId, createdAt], map: "company_events_company_created_at_idx")
+  @@map("company_events")
+}
+
+/// Контакт-человек компании (CRM-02). Роли в покупке — не здесь, а в DealContactRole:
+/// один человек участвует в разных задачах компании разными ролями.
+/// isLegacy — перенесённые строковые контакты сделок (непроверенные, оригинал сохранён в сделке).
+model Contact {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String?
+  position  String?
+  /// published | confirmed | guess | invalid
+  status    String   @default("published")
+  source    String?
+  discoveredAt DateTime? @map("discovered_at")
+  /// Прямая роль (ЛПР) подтверждена действиями, не должностью.
+  directRoleConfirmed Boolean @default(false) @map("direct_role_confirmed")
+  isLegacy Boolean @default(false) @map("is_legacy")
+  legacyDealId String? @map("legacy_deal_id") @db.Uuid
+  note      String?
+  // --- Запрет на контакт на уровне человека (CRM-04).
+  doNotContact Boolean @default(false) @map("do_not_contact")
+  dncReason    String? @map("dnc_reason")
+  dncAt        DateTime? @map("dnc_at")
+  dncScope     String @default("all") @map("dnc_scope")
+  dncSource    String? @map("dnc_source")
+  dncSetById   String? @map("dnc_set_by_id") @db.Uuid
+  dncLiftedAt  DateTime? @map("dnc_lifted_at")
+  dncLiftedReason String? @map("dnc_lifted_reason")
+  dncLiftedById String? @map("dnc_lifted_by_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "contacts_company_id_fkey")
+  channels  ContactChannel[]
+  dealRoles DealContactRole[]
+  activityLinks Activity[]
+  taskLinks SalesTask[]
+  draftLinks ProposalDraft[]
+  /// Контроль конкуренции (CRM-08): обновление с устаревшей версией → конфликт.
+  rowVersion Int     @default(1) @map("row_version")
+
+  @@index([companyId], map: "contacts_company_id_idx")
+  @@map("contacts")
+}
+
+/// Канал связи контакта (CRM-02): email/телефон/telegram с собственной проверкой —
+/// подтверждение телефона не подтверждает email. isDirect: личный прямой канал
+/// против общего (info@, приёмная).
+model ContactChannel {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  /// email | phone | telegram | other
+  kind      String
+  value     String
+  /// published | confirmed | guess | invalid
+  status    String   @default("published")
+  isDirect  Boolean  @default(false) @map("is_direct")
+  source    String?
+  verifiedAt DateTime? @map("verified_at")
+  note      String?
+  /// Контроль конкуренции (FIX-05-AC02).
+  rowVersion Int      @default(1) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade, map: "contact_channels_contact_id_fkey")
+
+  @@unique([contactId, kind, value], map: "contact_channels_contact_kind_value_key")
+  @@index([contactId], map: "contact_channels_contact_id_idx")
+  @@map("contact_channels")
+}
+
+/// Роль контакта в конкретной сделке (CRM-02): economic_buyer | process_owner |
+/// technical | procurement | champion | other. Сторонник (champion) подтверждается
+/// действиями — флаг confirmed, не должностью.
+model DealContactRole {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  dealId    String   @map("deal_id") @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  role      String
+  confirmed Boolean  @default(false)
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade, map: "deal_contact_roles_deal_id_fkey")
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade, map: "deal_contact_roles_contact_id_fkey")
+
+  @@unique([dealId, contactId, role], map: "deal_contact_roles_deal_contact_role_key")
+  @@index([contactId], map: "deal_contact_roles_contact_id_idx")
+  @@map("deal_contact_roles")
+}
+
+/// Статус критического утверждения сделки (CRM-05, §4.4): hypothesis | customer_confirmed |
+/// tested | unknown — с источником, датой и автором. Содержание утверждений — текстовые поля Deal.
+model DealClaim {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  dealId    String   @map("deal_id") @db.Uuid
+  /// problem | consequences | baseline | economic_buyer | process_owner | budget | solution
+  fieldKey  String   @map("field_key")
+  status    String   @default("unknown")
+  source    String?
+  sourceActivityId String? @map("source_activity_id") @db.Uuid
+  note      String?
+  recordedAt DateTime @default(now()) @map("recorded_at")
+  recordedById String @map("recorded_by_id") @db.Uuid
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade, map: "deal_claims_deal_id_fkey")
+
+  @@unique([dealId, fieldKey], map: "deal_claims_deal_field_key")
+  @@map("deal_claims")
+}
+
 /// История перемещений по этапам — сырьё для отчёта воронки и движения MRR.
+/// Расширение (CRM-06): стабильные stageId + snapshot названия (fromStage/toStage),
+/// событие (initial_entry | moved), автор (human | agent) и идемпотентный ключ.
+/// legacy=true — строки до доработки: без stageId и initial-entry, пробелы помечены, не дорисованы.
 model DealHistory {
   id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   dealId    String   @map("deal_id") @db.Uuid
   fromStage String?  @map("from_stage")
   toStage   String   @map("to_stage")
+  fromStageId String? @map("from_stage_id") @db.Uuid
+  toStageId   String? @map("to_stage_id") @db.Uuid
+  /// initial_entry | moved
+  event     String   @default("moved")
+  /// human | agent
+  actorKind String   @default("human") @map("actor_kind")
+  actorId   String?  @map("actor_id") @db.Uuid
+  reason    String?
+  /// Причина/основание override обязательного условия перехода.
+  overrideReason String? @map("override_reason")
   movedAt   DateTime @default(now()) @map("moved_at")
+  /// Сумма подписки на момент события (отчёты не зависят от текущих правок сделки).
+  monthlyAmountSnapshot Int? @map("monthly_amount_snapshot")
+  idempotencyKey String? @unique @map("idempotency_key")
+  legacy    Boolean  @default(false)
   deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade, map: "deal_history_deal_id_fkey")
 
   @@index([movedAt], map: "deal_history_moved_at_idx")
+  @@index([toStageId, movedAt], map: "deal_history_to_stage_id_moved_at_idx")
   @@map("deal_history")
+}
+
+/// Журнал реально выполненных взаимодействий (CRM-03). Попытка звонка, состоявшийся
+/// разговор, назначенная и проведённая встреча — разные actionType.
+/// occurredAt — конкретный момент времени; timezone хранится рядом (§4.5).
+model Activity {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  dealId    String?  @map("deal_id") @db.Uuid
+  contactId String?  @map("contact_id") @db.Uuid
+  occurredAt DateTime @map("occurred_at")
+  timezone  String   @default("Europe/Moscow")
+  /// call | email | telegram | meeting | other
+  channel   String
+  /// call_attempt | conversation | meeting_scheduled | meeting_held | message_sent | message_received | other
+  actionType String  @map("action_type")
+  /// outbound | inbound
+  direction String
+  result    String?
+  note      String?
+  /// Дословные цитаты клиента — отдельно от пересказа.
+  verbatimQuote String? @map("verbatim_quote")
+  /// Входящий ответ разобран человеком/агентом; null = требует разбора (экран «Сегодня»).
+  processedAt DateTime? @map("processed_at")
+  authorId  String   @map("author_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "activities_company_id_fkey")
+  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull, map: "activities_deal_id_fkey")
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull, map: "activities_contact_id_fkey")
+  author    User     @relation(fields: [authorId], references: [id], map: "activities_author_id_fkey")
+
+  @@index([companyId, occurredAt], map: "activities_company_occurred_at_idx")
+  @@index([dealId, occurredAt], map: "activities_deal_occurred_at_idx")
+  @@map("activities")
+}
+
+/// Рабочая задача продавца (CRM-03): ответственный, срок-момент с ЧП, цель и действие,
+/// клиентское обязательство или внутренний план. dueAt — момент; dueTimezone хранится рядом.
+/// templated=true — запланированное шаблонное продолжение: помечается needsReview
+/// при входящем ответе клиента (CRM-03-AC05, CRM-10-AC04).
+model SalesTask {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  companyId String?  @map("company_id") @db.Uuid
+  dealId    String?  @map("deal_id") @db.Uuid
+  contactId String?  @map("contact_id") @db.Uuid
+  assigneeId String  @map("assignee_id") @db.Uuid
+  goal      String
+  action    String?
+  /// Неизвестный срок остаётся неизвестным (FIX-07-AC04): null допустим.
+  dueAt     DateTime? @map("due_at")
+  /// Коммерческое / сервисное / внутреннее назначение — определяет область DNC (FIX-06-AC02).
+  kind      String   @default("commercial")
+  /// Дата, согласованная клиентом (отличается от плановой предложенной, OWNER-02-AC03).
+  clientAgreedAt DateTime? @map("client_agreed_at")
+  dueTimezone String @default("Europe/Moscow") @map("due_timezone")
+  /// open | done | cancelled
+  status    String   @default("open")
+  completedAt DateTime? @map("completed_at")
+  completedById String? @map("completed_by_id") @db.Uuid
+  linkedActivityId String? @map("linked_activity_id") @db.Uuid
+  /// client_commitment | internal_plan
+  commitmentType String @default("internal_plan") @map("commitment_type")
+  templated Boolean  @default(false)
+  needsReview Boolean @default(false) @map("needs_review")
+  /// Внешний идентификатор (импорт) — идемпотентность повторного импорта.
+  externalId String? @unique @map("external_id")
+  createdById String @map("created_by_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "sales_tasks_company_id_fkey")
+  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull, map: "sales_tasks_deal_id_fkey")
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull, map: "sales_tasks_contact_id_fkey")
+  assignee  User     @relation(fields: [assigneeId], references: [id], map: "sales_tasks_assignee_id_fkey")
+  /// Контроль конкуренции (CRM-08).
+  rowVersion Int    @default(1) @map("row_version")
+
+  @@index([assigneeId, status], map: "sales_tasks_assignee_status_idx")
+  @@index([dueAt], map: "sales_tasks_due_at_idx")
+  @@index([companyId], map: "sales_tasks_company_id_idx")
+  @@map("sales_tasks")
+}
+
+/// Черновик/версия предложения (CRM-10). Версии одной нити — строки с общим groupId
+/// и growing version. Изменение текста или адресата после одобрения — новая версия
+/// со статусом draft; одобрение привязано к contentHash конкретной версии.
+/// Отправка — только ручная фиксация факта человеком (без провайдера), с автором и временем.
+model ProposalDraft {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  version   Int
+  dealId    String?  @map("deal_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  contactId String?  @map("contact_id") @db.Uuid
+  /// email | telegram | phone | other
+  channel   String
+  /// Точный получатель (адрес/номер/юзернейм) на момент версии.
+  recipient String
+  subject   String?
+  body      String
+  /// Условия КП (§5 ТЗ): состав, исключения, разовое/регулярное, сроки при готовности,
+  /// обязанности, критерии, срок действия.
+  terms     Json?
+  productClaimsVersion String? @map("product_claims_version")
+  /// Ссылки на источники утверждений (activity id / текст).
+  evidence  Json?
+  /// draft | reviewed | approved | sent | failed | cancelled
+  status    String   @default("draft")
+  createdById String @map("created_by_id") @db.Uuid
+  reviewedById String? @map("reviewed_by_id") @db.Uuid
+  reviewedAt DateTime? @map("reviewed_at")
+  approvedById String? @map("approved_by_id") @db.Uuid
+  approvedAt DateTime? @map("approved_at")
+  contentHash String? @map("content_hash")
+  sentAt    DateTime? @map("sent_at")
+  sentById  String?  @map("sent_by_id") @db.Uuid
+  externalMessageId String? @map("external_message_id")
+  cancelledAt DateTime? @map("cancelled_at")
+  cancelReason String? @map("cancel_reason")
+  /// Доказательство доставки (OWNER-04-AC01): ручная фиксация sent доставкой не считается.
+  deliveredAt   DateTime? @map("delivered_at")
+  deliveryProof String?   @map("delivery_proof")
+  /// Причина удержания (on_hold), включая установленный DNC (FIX-06-AC03).
+  holdReason    String?   @map("hold_reason")
+  /// Внешний идентификатор группы (импорт) — повторный импорт не создаёт дублей.
+  externalId String? @unique @map("external_id")
+  /// Контроль конкуренции (CRM-08): version занят номером версии предложения.
+  rowVersion Int    @default(1) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "proposal_drafts_company_id_fkey")
+  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull, map: "proposal_drafts_deal_id_fkey")
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull, map: "proposal_drafts_contact_id_fkey")
+
+  @@unique([groupId, version], map: "proposal_drafts_group_version_key")
+  @@index([companyId], map: "proposal_drafts_company_id_idx")
+  @@index([dealId], map: "proposal_drafts_deal_id_idx")
+  @@index([status], map: "proposal_drafts_status_idx")
+  @@map("proposal_drafts")
+}
+
+/// Запись пилота (CRM-09): компактная карточка + критерии + вехи, не система проектов.
+/// Активация (status=running) требует владельцев, исходных данных, ≥1 критерия и даты решения.
+/// Итог — явное решение accepted/revise/stop с датой; успешное демо ничего не закрывает само.
+model PilotEvaluation {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  dealId    String   @unique @map("deal_id") @db.Uuid
+  goal      String?
+  scopeArea String?  @map("scope_area")
+  productVersion String? @map("product_version")
+  termsVersion String? @map("terms_version")
+  scopeIn   String?  @map("scope_in")
+  scopeOut  String?  @map("scope_out")
+  sourceData String? @map("source_data")
+  readinessNotes String? @map("readiness_notes")
+  ordixOwnerId String? @map("ordix_owner_id") @db.Uuid
+  clientOwnerContactId String? @map("client_owner_contact_id") @db.Uuid
+  clientOwnerName String? @map("client_owner_name")
+  usersOverview String? @map("users_overview")
+  metricsMethod String? @map("metrics_method")
+  thresholds String?
+  schedule  String?
+  hoursSpent Int     @default(0) @map("hours_spent")
+  costs     Int     @default(0)
+  blockers  String?
+  decisionDueOn DateTime? @map("decision_due_on") @db.Date
+  paidNextStep String? @map("paid_next_step")
+  paidNextStepAnchor Int? @map("paid_next_step_anchor")
+  /// draft | running
+  status    String   @default("draft")
+  /// accepted | revise | stop | null
+  outcome   String?
+  decidedAt DateTime? @map("decided_at")
+  decisionNote String? @map("decision_note")
+  /// Контроль конкуренции (FIX-05-AC02).
+  rowVersion Int     @default(1) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade, map: "pilot_evaluations_deal_id_fkey")
+  ordixOwner User?   @relation(fields: [ordixOwnerId], references: [id], map: "pilot_evaluations_ordix_owner_id_fkey")
+  criteria  PilotCriterion[]
+  milestones PilotMilestone[]
+
+  @@map("pilot_evaluations")
+}
+
+/// Критерий пилота с версионированием (CRM-09-AC04): изменение задним числом невозможно —
+/// правка создаёт новую версию, старая остаётся в истории (active=false).
+model PilotCriterion {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  pilotId   String   @map("pilot_id") @db.Uuid
+  criterionKey String @map("criterion_key")
+  statement String
+  method    String?
+  version   Int      @default(1)
+  agreedAt  DateTime? @map("agreed_at")
+  agreedById String? @map("agreed_by_id") @db.Uuid
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  pilot     PilotEvaluation @relation(fields: [pilotId], references: [id], onDelete: Cascade, map: "pilot_criteria_pilot_id_fkey")
+
+  @@unique([pilotId, criterionKey, version], map: "pilot_criteria_pilot_key_version_key")
+  @@index([pilotId], map: "pilot_criteria_pilot_id_idx")
+  @@map("pilot_criteria")
+}
+
+/// Веха пилота: обязательство клиента или ОРДИКС с ответственным, сроком и доказательством.
+model PilotMilestone {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  pilotId   String   @map("pilot_id") @db.Uuid
+  /// client | ordix
+  side      String
+  commitment String
+  ownerId   String?  @map("owner_id") @db.Uuid
+  dueOn     DateTime? @map("due_on") @db.Date
+  proof     String?
+  doneAt    DateTime? @map("done_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  pilot     PilotEvaluation @relation(fields: [pilotId], references: [id], onDelete: Cascade, map: "pilot_milestones_pilot_id_fkey")
+
+  @@index([pilotId], map: "pilot_milestones_pilot_id_idx")
+  @@map("pilot_milestones")
+}
+
+/// Цикл запуска и удержания (CRM-12): ручной рабочий цикл по выигранной сделке.
+/// Вклад = подтверждённые поступления по сделке − directCosts − supportHours × laborHourRate.
+model DealLaunch {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  dealId    String   @unique @map("deal_id") @db.Uuid
+  launchOwnerId String? @map("launch_owner_id") @db.Uuid
+  plannedStartOn DateTime? @map("planned_start_on") @db.Date
+  actualStartOn DateTime? @map("actual_start_on") @db.Date
+  firstScenarioAcceptedOn DateTime? @map("first_scenario_accepted_on") @db.Date
+  usageIssues String? @map("usage_issues")
+  supportHours Int  @default(0) @map("support_hours")
+  directCosts Int  @default(0) @map("direct_costs")
+  valueCheckDueOn DateTime? @map("value_check_due_on") @db.Date
+  /// none | low | medium | high
+  riskLevel String @default("none") @map("risk_level")
+  riskNotes String? @map("risk_notes")
+  nextArea  String? @map("next_area")
+  caseStudyAllowed Boolean @default(false) @map("case_study_allowed")
+  caseStudyBasis String? @map("case_study_basis")
+  /// Контроль конкуренции (FIX-05-AC02).
+  rowVersion Int     @default(1) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade, map: "deal_launches_deal_id_fkey")
+  launchOwner User?  @relation(fields: [launchOwnerId], references: [id], map: "deal_launches_launch_owner_id_fkey")
+
+  @@map("deal_launches")
 }
 
 model DealComment {
@@ -191,6 +746,7 @@ model DevTaskComment {
 
 /// Факт движения денег: kind: income | expense; сумма — целые рубли; дата — день поступления/списания
 /// (кассовый метод: «выставленный счёт» — это не доход, это сделка в CRM).
+/// dealId/expectedPaymentId — структурная связь поступления со сделкой и обязательством (CRM-11).
 model Txn {
   id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   kind        String
@@ -199,12 +755,21 @@ model Txn {
   category    String
   comment     String?
   createdById String   @map("created_by_id") @db.Uuid
+  dealId      String?  @map("deal_id") @db.Uuid
+  expectedPaymentId String? @map("expected_payment_id") @db.Uuid
+  /// Сторнирование (FIX-04-AC03): ссылка на сторнируемый факт и момент сторнирования.
+  reversalOfId String?  @map("reversal_of_id") @db.Uuid
+  reversalReason String? @map("reversal_reason")
+  reversedAt  DateTime? @map("reversed_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdBy   User     @relation(fields: [createdById], references: [id], map: "txns_created_by_id_fkey")
+  deal        Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull, map: "txns_deal_id_fkey")
+  expectedPayment ExpectedPayment? @relation(fields: [expectedPaymentId], references: [id], onDelete: SetNull, map: "txns_expected_payment_id_fkey")
 
   @@index([occurredOn], map: "txns_occurred_on_idx")
   @@index([kind, occurredOn], map: "txns_kind_occurred_on_idx")
+  @@index([dealId], map: "txns_deal_id_idx")
   @@map("txns")
 }
 
@@ -229,10 +794,14 @@ model RecurringItem {
 }
 
 /// Singleton-строка настроек: стартовый остаток денег на дату, с которого считается баланс.
+/// laborHourRate — стоимость часа работы для расчёта вклада запуска после расходов (CRM-12).
 model BizSettings {
   id                String   @id @default("singleton")
   openingBalanceDate DateTime @map("opening_balance_date") @db.Date
   openingBalance    Int      @map("opening_balance")
+  laborHourRate     Int      @default(0) @map("labor_hour_rate")
+  /// Рабочий часовой пояс владельца для границ дня «Сегодня» (OWNER-02-AC02).
+  timezone          String   @default("Europe/Moscow")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("biz_settings")
@@ -250,19 +819,28 @@ model MonthGoal {
 
 /// Ожидаемое поступление (дебиторка): выставленный счёт. В баланс не входит,
 /// в прогнозе учитывается с коэффициентом probability/100.
+/// Расширение (CRM-11): статус исполнения и подтверждённые поступления; история
+/// не удаляется после получения. Остаток = amount − receivedAmount (с учётом отмен).
 model ExpectedPayment {
   id            String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   title         String
   invoiceNumber String?  @map("invoice_number")
   amount        Int
   dueDate     DateTime @map("due_date") @db.Date
-  probability Int      @default(80)
+  probability  Int      @default(80)
   dealId      String?  @map("deal_id") @db.Uuid
+  /// expected | partially_received | received | cancelled
+  status      String   @default("expected")
+  receivedAmount Int   @default(0) @map("received_amount")
+  /// Контроль конкуренции (FIX-05-AC02).
+  rowVersion Int       @default(1) @map("row_version")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   deal        Deal?    @relation(fields: [dealId], references: [id], map: "expected_payments_deal_id_fkey")
+  receipts    Txn[]
 
   @@index([dueDate], map: "expected_payments_due_date_idx")
+  @@index([status], map: "expected_payments_status_idx")
   @@map("expected_payments")
 }
 
@@ -314,8 +892,45 @@ model PasswordResetToken {
 enum UserRole {
   user
   admin
+  agent
 
   @@map("user_role")
+}
+
+/// Идемпотентность агентских/переходных операций (CRM-08, §8.2): actor + operation + key.
+/// Та же нагрузка возвращает прежний результат; другая нагрузка с тем же ключом — конфликт.
+model IdempotencyRecord {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  actorId     String   @map("actor_id") @db.Uuid
+  operation   String
+  key         String
+  requestHash String   @map("request_hash")
+  /// Сериализованный успешный результат для повтора без дублирования.
+  result      Json?
+  /// reserved | completed | failed — жизненный цикл атомарного резервирования (FIX-03-AC01).
+  state       String   @default("completed")
+  /// Момент последней смены состояния: устаревшее reserved можно перезапустить (FIX-03-AC02).
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([actorId, operation, key], map: "idempotency_records_actor_operation_key_key")
+  @@map("idempotency_records")
+}
+
+/// Журнал агентских операций (CRM-08-AC04): успех и ошибка записи видны в очереди;
+/// попытка не выдаётся за факт записи. Без секретов.
+model AgentOpLog {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  actorId   String   @map("actor_id") @db.Uuid
+  runId     String?  @map("run_id")
+  operation String
+  entityId  String?  @map("entity_id") @db.Uuid
+  ok        Boolean
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt], map: "agent_op_logs_actor_created_at_idx")
+  @@map("agent_op_logs")
 }
 
 // =============================================================================

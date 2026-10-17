@@ -38,10 +38,12 @@ import type {
 
 import type { DbClient } from '../../../db'
 import { BusinessFailure } from '../domain/errors'
+import { normalizeDomain } from '../domain/sales-rules'
 import type { BusinessRepository } from '../application/ports'
 
 type DealRow = Awaited<ReturnType<DbClient['deal']['findUniqueOrThrow']>> & {
   createdBy: { displayName: string | null }
+  owner: { displayName: string | null } | null
   company: { name: string } | null
 }
 type DevTaskRow = Awaited<ReturnType<DbClient['devTask']['findUniqueOrThrow']>>
@@ -79,6 +81,10 @@ function toDealDto(row: DealRow & { _count: { comments: number } }): Deal {
     lastStageChangeAt: row.lastStageChangeAt ? row.lastStageChangeAt.toISOString() : null,
     createdById: row.createdById,
     createdByName: row.createdBy?.displayName ?? null,
+    ownerId: row.ownerId,
+    ownerName: row.owner?.displayName ?? null,
+    subStatus: row.subStatus,
+    version: row.version,
     commentsCount: row._count.comments,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -120,6 +126,7 @@ function toTxnDto(row: TxnRow): Txn {
     occurredOn: toDateOnly(row.occurredOn) ?? '',
     category: row.category,
     comment: row.comment,
+    dealId: row.dealId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -187,6 +194,7 @@ async function guarded<T>(operation: () => Promise<T>): Promise<T> {
 const dealInclude = {
   _count: { select: { comments: true } },
   createdBy: { select: { displayName: true } },
+  owner: { select: { displayName: true } },
   company: { select: { name: true } },
 } as const
 const devTaskInclude = {
@@ -211,6 +219,8 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         position: stage.position,
         isWon: stage.isWon,
         isLost: stage.isLost,
+        code: stage.code,
+        semanticType: stage.semanticType,
         deals: stage.deals.map(toDealDto),
       })) satisfies CrmBoardResponse['stages']
     },
@@ -354,6 +364,8 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
           title: input.title,
           isWon: input.isWon,
           isLost: input.isLost,
+          semanticType: input.semanticType ?? (input.isWon ? 'won' : input.isLost ? 'lost' : 'other'),
+          code: '',
           position: (last?.position ?? -1) + 1,
         },
       })
@@ -367,6 +379,7 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         if (input.isWon !== undefined) data.isWon = input.isWon
         if (input.isLost !== undefined) data.isLost = input.isLost
         if (input.position !== undefined) data.position = input.position
+        if (input.semanticType !== undefined) data.semanticType = input.semanticType
         const stage = await db.crmStage.update({ where: { id }, data })
         return stage satisfies CrmStage
       })
@@ -413,8 +426,8 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
           data: {
             title: input.title,
             description: input.description ?? null,
-            type: input.type,
-            priority: input.priority,
+            type: input.type ?? 'feature',
+            priority: input.priority ?? 'medium',
             dueDate: input.dueDate ? fromDateOnly(input.dueDate) : null,
             fixVersion: input.fixVersion ?? null,
             dealId: input.dealId ?? null,
@@ -637,15 +650,19 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         return {
           openingBalanceDate: toDateOnly(row.openingBalanceDate) ?? '',
           openingBalance: row.openingBalance,
+          laborHourRate: row.laborHourRate,
+          timezone: row.timezone,
         } satisfies BizSettings
       }
       const today = new Date().toISOString().slice(0, 10)
       const created = await db.bizSettings.create({
-        data: { id: 'singleton', openingBalanceDate: fromDateOnly(today), openingBalance: 0 },
+        data: { id: 'singleton', openingBalanceDate: fromDateOnly(today), openingBalance: 0, laborHourRate: 0, timezone: 'Europe/Moscow' },
       })
       return {
         openingBalanceDate: toDateOnly(created.openingBalanceDate) ?? '',
         openingBalance: created.openingBalance,
+        laborHourRate: created.laborHourRate,
+        timezone: created.timezone,
       } satisfies BizSettings
     },
 
@@ -673,23 +690,22 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         id: row.id,
         fromStage: row.fromStage,
         toStage: row.toStage,
+        fromStageId: row.fromStageId,
+        toStageId: row.toStageId,
+        event: row.event,
+        actorKind: row.actorKind,
+        actorId: row.actorId,
+        reason: row.reason,
+        overrideReason: row.overrideReason,
+        monthlyAmountSnapshot: row.monthlyAmountSnapshot,
+        legacy: row.legacy,
         movedAt: row.movedAt.toISOString(),
       }))
     },
 
     async listExpectedPayments() {
       const rows = await db.expectedPayment.findMany({ orderBy: { dueDate: 'asc' } })
-      return rows.map((row) => ({
-        id: row.id,
-        title: row.title,
-        amount: row.amount,
-        dueDate: toDateOnly(row.dueDate) ?? '',
-        probability: row.probability,
-        dealId: row.dealId,
-        invoiceNumber: row.invoiceNumber,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-      }))
+      return rows.map(mapExpected)
     },
 
     async createExpectedPayment(input) {
@@ -752,21 +768,73 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
 
     async listCompanies() {
       const rows = await db.company.findMany({ orderBy: { name: 'asc' } })
-      const stages = await db.crmStage.findMany({
-        include: { deals: { select: { companyId: true, monthlyAmount: true } } },
-      })
-      const wonStageIds = new Set(stages.filter((stage) => stage.isWon).map((stage) => stage.id))
+      const today = new Date().toISOString().slice(0, 10)
+      const [deals, contactCounts, openTaskCounts] = await Promise.all([
+        db.deal.findMany({
+          select: {
+            companyId: true,
+            monthlyAmount: true,
+            subStatus: true,
+            subStartsOn: true,
+            subEndsOn: true,
+          },
+        }),
+        db.contact.groupBy({ by: ['companyId'], _count: { _all: true } }),
+        db.salesTask.groupBy({
+          by: ['companyId'],
+          where: { status: 'open' },
+          _count: { _all: true },
+        }),
+      ])
+      const contactsByCompany = new Map(contactCounts.map((row) => [row.companyId, row._count._all]))
+      const openTasksByCompany = new Map(openTaskCounts.map((row) => [row.companyId as string, row._count._all]))
       return rows.map((row) => {
         let dealsCount = 0
         let activeMrr = 0
-        for (const stage of stages) {
-          for (const deal of stage.deals) {
-            if (deal.companyId !== row.id) continue
-            dealsCount += 1
-            if (wonStageIds.has(stage.id)) activeMrr += deal.monthlyAmount
+        for (const deal of deals) {
+          if (deal.companyId !== row.id) continue
+          dealsCount += 1
+          if (
+            deal.subStatus === 'active' &&
+            (deal.subStartsOn ?? '') <= today &&
+            (deal.subEndsOn ?? '9999-12-31') >= today
+          ) {
+            activeMrr += deal.monthlyAmount
           }
         }
-        return { id: row.id, name: row.name, note: row.note, dealsCount, activeMrr }
+        return {
+          id: row.id,
+          name: row.name,
+          note: row.note,
+          website: row.website,
+          domain: row.domain,
+          inn: row.inn,
+          region: row.region,
+          segment: row.segment,
+          processDescription: row.processDescription,
+          researchSource: row.researchSource,
+          researchedAt: row.researchedAt ? row.researchedAt.toISOString() : null,
+          researchStatus: row.researchStatus,
+          relationStatus: row.relationStatus,
+          selectionReason: row.selectionReason,
+          exclusionReason: row.exclusionReason,
+          ownerId: row.ownerId,
+          ownerName: null,
+          cohortVersion: row.cohortVersion,
+          contactSource: row.contactSource,
+          externalId: row.externalId,
+          doNotContact: row.doNotContact,
+          dncReason: row.dncReason,
+          dncAt: row.dncAt ? row.dncAt.toISOString() : null,
+          dncScope: row.dncScope,
+          dealsCount,
+          activeMrr,
+          contactsCount: contactsByCompany.get(row.id) ?? 0,
+          openTasksCount: openTasksByCompany.get(row.id) ?? 0,
+          version: row.version,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        }
       })
     },
 
@@ -776,13 +844,71 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         throw new BusinessFailure('conflict', 'Контрагент с таким названием уже есть')
       }
       const row = await db.company.create({
-        data: { name: input.name, note: input.note ?? null },
+        data: {
+          name: input.name,
+          note: input.note ?? null,
+          website: input.website ?? null,
+          domain: input.website ? normalizeDomain(input.website) : null,
+          inn: input.inn ?? null,
+          region: input.region ?? null,
+          segment: input.segment ?? null,
+          processDescription: input.processDescription ?? null,
+          researchSource: input.researchSource ?? null,
+          researchedAt: input.researchedAt ? new Date(input.researchedAt) : null,
+          researchStatus: input.researchStatus ?? 'selected',
+          relationStatus: input.relationStatus ?? 'prospect',
+          selectionReason: input.selectionReason ?? null,
+          ownerId: input.ownerId ?? null,
+          cohortVersion: input.cohortVersion ?? null,
+          contactSource: input.contactSource ?? null,
+          externalId: input.externalId ?? null,
+        },
       })
-      return { id: row.id, name: row.name, note: row.note, dealsCount: 0, activeMrr: 0 }
+      return {
+        id: row.id,
+        name: row.name,
+        note: row.note,
+        website: row.website,
+        domain: row.domain,
+        inn: row.inn,
+        region: row.region,
+        segment: row.segment,
+        processDescription: row.processDescription,
+        researchSource: row.researchSource,
+        researchedAt: row.researchedAt ? row.researchedAt.toISOString() : null,
+        researchStatus: row.researchStatus,
+        relationStatus: row.relationStatus,
+        selectionReason: row.selectionReason,
+        exclusionReason: row.exclusionReason,
+        ownerId: row.ownerId,
+        ownerName: null,
+        cohortVersion: row.cohortVersion,
+        contactSource: row.contactSource,
+        externalId: row.externalId,
+        doNotContact: row.doNotContact,
+        dncReason: row.dncReason,
+        dncAt: row.dncAt ? row.dncAt.toISOString() : null,
+        dncScope: row.dncScope,
+        dealsCount: 0,
+        activeMrr: 0,
+        contactsCount: 0,
+        openTasksCount: 0,
+        version: row.version,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      }
     },
 
     async countTxns() {
       return db.txn.count()
+    },
+
+    async findLinkedReceiptTxn(id) {
+      const row = await db.txn.findUnique({
+        where: { id },
+        select: { id: true, expectedPaymentId: true, reversalOfId: true },
+      })
+      return row
     },
 
     async listRecentComments(since, limit) {
@@ -836,16 +962,22 @@ export function createPrismaBusinessRepository(db: DbClient): BusinessRepository
         update: {
           openingBalanceDate: fromDateOnly(settings.openingBalanceDate),
           openingBalance: settings.openingBalance,
+          laborHourRate: settings.laborHourRate,
+          timezone: settings.timezone,
         },
         create: {
           id: 'singleton',
           openingBalanceDate: fromDateOnly(settings.openingBalanceDate),
           openingBalance: settings.openingBalance,
+          laborHourRate: settings.laborHourRate,
+          timezone: settings.timezone,
         },
       })
       return {
         openingBalanceDate: toDateOnly(row.openingBalanceDate) ?? '',
         openingBalance: row.openingBalance,
+        laborHourRate: row.laborHourRate,
+        timezone: row.timezone,
       } satisfies BizSettings
     },
   }
@@ -860,6 +992,10 @@ function mapExpected(row: Awaited<ReturnType<DbClient['expectedPayment']['findUn
     dueDate: toDateOnly(row.dueDate) ?? '',
     probability: row.probability,
     dealId: row.dealId,
+    status: row.status,
+    receivedAmount: row.receivedAmount,
+    remainingAmount: Math.max(0, row.amount - row.receivedAmount),
+    version: row.rowVersion,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }

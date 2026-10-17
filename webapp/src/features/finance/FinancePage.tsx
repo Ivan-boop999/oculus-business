@@ -1,4 +1,6 @@
 import { useState } from 'react'
+
+import { SubscriptionsPanel } from './SubscriptionsPanel'
 import { Link } from '@tanstack/react-router'
 
 import { Badge } from '@/components/ui/badge'
@@ -259,6 +261,8 @@ export function FinancePage() {
         open={selectedTxn !== null || creating}
         txn={selectedTxn}
       />
+
+      <SubscriptionsPanel />
     </div>
   )
 }

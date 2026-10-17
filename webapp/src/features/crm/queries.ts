@@ -79,11 +79,15 @@ export function useMoveDealMutation() {
       id,
       stageId,
       position,
+      reason,
+      overrideReason,
     }: {
       id: string
       stageId: string
       position: number
-    }) => moveDeal(transport, id, { stageId, position }),
+      reason?: string | null
+      overrideReason?: string | null
+    }) => moveDeal(transport, id, { stageId, position, reason: reason ?? undefined, overrideReason: overrideReason ?? undefined }),
     onSuccess: invalidate,
   })
 }

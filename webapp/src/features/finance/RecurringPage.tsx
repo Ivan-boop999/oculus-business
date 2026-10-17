@@ -126,11 +126,12 @@ function Row({ item, onSelect }: { item: RecurringItem; onSelect: () => void }) 
 function BalanceForm({
   initial,
 }: {
-  initial: { openingBalance: number; openingBalanceDate: string }
+  initial: { openingBalance: number; openingBalanceDate: string; laborHourRate: number }
 }) {
   const save = useSaveSettingsMutation()
   const [balance, setBalance] = useState(String(initial.openingBalance))
   const [date, setDate] = useState(initial.openingBalanceDate)
+  const [rate, setRate] = useState(String(initial.laborHourRate ?? 0))
 
   return (
     <div className="grid gap-2 rounded-2xl border border-white/6 bg-gradient-to-b from-white/[0.045] to-white/[0.015] p-4">
@@ -139,20 +140,31 @@ function BalanceForm({
         Сколько денег было на счетах на эту дату. Баланс = стартовый остаток + все операции с этой
         даты.
       </p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Input
           inputMode="numeric"
           onChange={(event) => setBalance(event.target.value)}
           value={balance}
         />
         <Input onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+        <Input
+          inputMode="numeric"
+          onChange={(event) => setRate(event.target.value)}
+          title="Стоимость часа работы — для расчёта вклада запуска после расходов"
+          value={rate}
+        />
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        Третье поле — стоимость часа работы (₽): из неё считается вклад запуска после расходов и часов поддержки.
+      </p>
       <Button
         disabled={save.isPending}
         onClick={() =>
           save.mutate({
             openingBalance: Number(balance) || 0,
             openingBalanceDate: date || todayDateOnly(),
+            laborHourRate: Number(rate) || 0,
+            timezone: 'Europe/Moscow',
           })
         }
         size="sm"

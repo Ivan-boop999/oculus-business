@@ -15,7 +15,9 @@ export const passwordSchema = z
   .min(8, 'Password must be at least 8 characters')
   .max(128, 'Password must be at most 128 characters')
 
-export const userRoleSchema = z.enum(['user', 'admin'])
+/// `agent` — ограниченная учётная запись для программного доступа (CRM-08): REST без доступа
+/// к БД и без пароля администратора; коммерческие подтверждения запрещены без отдельного права.
+export const userRoleSchema = z.enum(['user', 'admin', 'agent'])
 
 export const userSchema = z.object({
   id: z.string(),

@@ -86,48 +86,6 @@ export class BusinessService {
     return { stages: await this.repository.listCrmBoard() }
   }
 
-  async createDeal(input: CreateDealRequest, createdById: string): Promise<Deal> {
-    void this.notifier
-      ?.notify(
-        '🆕 Новая сделка: ' +
-          input.title +
-          (input.monthlyAmount > 0 ? ' (' + input.monthlyAmount + ' ₽/мес)' : ''),
-      )
-      .catch(() => undefined)
-    let stageId = input.stageId
-    if (stageId === undefined) {
-      stageId = (await this.repository.firstStageId()) ?? undefined
-    }
-    if (stageId === undefined) {
-      throw new BusinessFailure('conflict', 'Сначала создайте хотя бы один этап воронки')
-    }
-    return this.repository.createDeal({ ...input, stageId }, createdById, stageId)
-  }
-
-  async updateDeal(id: string, input: UpdateDealRequest): Promise<Deal> {
-    return this.repository.updateDeal(id, input)
-  }
-
-  async moveDeal(id: string, stageId: string, position: number): Promise<Deal> {
-    const moved = await this.repository.moveDeal(id, stageId, position)
-    const stages = await this.repository.listCrmBoard()
-    const target = stages.find((stage) => stage.id === stageId)
-    if (target?.isWon) {
-      void this.notifier
-        ?.notify(
-          '🎉 Сделка выиграна: ' +
-            moved.title +
-            (moved.monthlyAmount > 0 ? ' (+' + moved.monthlyAmount + ' ₽/мес MRR)' : ''),
-        )
-        .catch(() => undefined)
-    }
-    return moved
-  }
-
-  async deleteDeal(id: string): Promise<void> {
-    await this.repository.deleteDeal(id)
-  }
-
   async dealComments(dealId: string): Promise<DealComment[]> {
     return this.repository.listDealComments(dealId)
   }
@@ -239,10 +197,26 @@ export class BusinessService {
   }
 
   async updateTxn(id: string, input: UpdateTxnRequest): Promise<Txn> {
+    // FIX-04-AC03 (аудит R-05): правка связанного поступления через старую форму
+    // рассинхронизирует обязательство — только явное сторнирование.
+    const linked = await this.repository.findLinkedReceiptTxn(id)
+    if (linked !== null) {
+      throw new BusinessFailure(
+        'conflict',
+        'Поступление связано с обязательством: используйте сторнирование (POST /api/finance/expected/{id}/receipts/{txnId}/reverse), а не правку',
+      )
+    }
     return this.repository.updateTxn(id, input)
   }
 
   async deleteTxn(id: string): Promise<void> {
+    const linked = await this.repository.findLinkedReceiptTxn(id)
+    if (linked !== null) {
+      throw new BusinessFailure(
+        'conflict',
+        'Поступление связано с обязательством: используйте сторнирование (POST /api/finance/expected/{id}/receipts/{txnId}/reverse), а не удаление',
+      )
+    }
     await this.repository.deleteTxn(id)
   }
 
@@ -324,14 +298,16 @@ export class BusinessService {
       else expense += txn.amount
     }
 
+    // Активный MRR — из действующих подписок (subStatus=active и период покрывает сегодня),
+    // не из факта нахождения на won-этапе (CRM-11, §8.4).
     let mrr = 0
     let pipelineMonthly = 0
     let pipelineOneTime = 0
     for (const stage of stages) {
       for (const deal of stage.deals) {
-        if (stage.isWon) {
+        if (deal.subStatus === 'active') {
           mrr += deal.monthlyAmount
-        } else if (!stage.isLost) {
+        } else if (!stage.isLost && deal.subStatus !== 'ended') {
           pipelineMonthly += deal.monthlyAmount
           pipelineOneTime += deal.oneTimeAmount
         }
@@ -382,8 +358,9 @@ export class BusinessService {
       this.repository.listExpectedPayments(),
     ])
     const mrr = stages
-      .filter((stage) => stage.isWon)
-      .reduce((sum, stage) => sum + stage.deals.reduce((s, d) => s + d.monthlyAmount, 0), 0)
+      .flatMap((stage) => stage.deals)
+      .filter((deal) => deal.subStatus === 'active')
+      .reduce((sum, deal) => sum + deal.monthlyAmount, 0)
     return computeForecast({
       now: this.clock.now(),
       horizon,
@@ -391,11 +368,13 @@ export class BusinessService {
       txns,
       recurring,
       mrr,
-      expected: expected.map((payment) => ({
-        dueDate: payment.dueDate,
-        amount: payment.amount,
-        probability: payment.probability,
-      })),
+      expected: expected
+        .filter((payment) => payment.status !== 'cancelled' && payment.remainingAmount > 0)
+        .map((payment) => ({
+          dueDate: payment.dueDate,
+          amount: payment.remainingAmount,
+          probability: payment.probability,
+        })),
     })
   }
 
@@ -568,22 +547,11 @@ export class BusinessService {
     await this.repository.deleteExpectedPayment(id)
   }
 
-  /// «Получено»: создаёт фактическую операцию дохода и убирает из списка ожиданий.
-  async markExpectedReceived(id: string, createdById: string): Promise<void> {
-    const payments = await this.repository.listExpectedPayments()
-    const payment = payments.find((item) => item.id === id)
-    if (!payment) throw new BusinessFailure('not_found', 'Ожидаемое поступление не найдено')
-    await this.repository.createTxn(
-      {
-        kind: 'income',
-        amount: payment.amount,
-        occurredOn: payment.dueDate,
-        category: 'Оплата по сделке',
-        comment: payment.title,
-      },
-      createdById,
-    )
-    await this.repository.deleteExpectedPayment(id)
+  /// Легаси-операция «Получено» сохранена для совместимости: закрывает остаток
+  /// обязательства поступлением с фактической датой сегодня (перенаправляется в SalesService
+  /// на уровне маршрута; метод оставлен только для внутреннего использования тестами).
+  async markExpectedReceivedLegacy(): Promise<void> {
+    throw new BusinessFailure('conflict', 'Используйте POST /api/finance/expected/{id}/receipts')
   }
 
   // ------------------------------------------------ Спринты

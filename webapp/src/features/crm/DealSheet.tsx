@@ -23,6 +23,7 @@ import { useIsDesktop } from '@/platform/use-is-desktop'
 
 import type { StageWithDeals } from './CrmBoardPage'
 
+import { DealSheetTabs } from './DealSheetTabs'
 import {
   useAddDealCommentMutation,
   useCreateDealMutation,
@@ -122,6 +123,8 @@ export function DealSheet({
   const [error, setError] = useState<string | null>(null)
   const isDesktop = useIsDesktop()
   const [pendingLostStage, setPendingLostStage] = useState<string | null>(null)
+  const [stageError, setStageError] = useState<{ stageId: string; message: string } | null>(null)
+  const [overrideReason, setOverrideReason] = useState('')
   const [lostReasonChoice, setLostReasonChoice] = useState('')
   const [lostReasonOther, setLostReasonOther] = useState('')
   const [comment, setComment] = useState('')
@@ -134,6 +137,8 @@ export function DealSheet({
       setPendingLostStage(deal !== null && !deal.lostReason ? lostPromptStageId : null)
       setLostReasonChoice('')
       setLostReasonOther('')
+      setStageError(null)
+      setOverrideReason('')
     }
   }, [open, deal, lostPromptStageId])
 
@@ -352,11 +357,17 @@ export function DealSheet({
                     setPendingLostStage(nextStageId)
                     return
                   }
-                  moveDeal.mutate({
-                    id: deal.id,
-                    stageId: nextStageId,
-                    position: target.deals.length,
-                  })
+                  setStageError(null)
+                  moveDeal.mutate(
+                    { id: deal.id, stageId: nextStageId, position: target.deals.length },
+                    {
+                      onError: (caught) =>
+                        setStageError({
+                          stageId: nextStageId,
+                          message: caught instanceof Error ? caught.message : 'Переход отклонён сервером',
+                        }),
+                    },
+                  )
                 }}
                 value={deal.stageId}
               >
@@ -409,6 +420,11 @@ export function DealSheet({
                           position: target?.deals.length ?? 0,
                         },
                         {
+                          onError: (caught) =>
+                            setStageError({
+                              stageId: pendingLostStage,
+                              message: caught instanceof Error ? caught.message : 'Переход отклонён сервером',
+                            }),
                           onSuccess: () => {
                             updateDeal.mutate({
                               id: deal.id,
@@ -431,6 +447,46 @@ export function DealSheet({
                   </Button>
                   <Button onClick={() => setPendingLostStage(null)} size="sm" variant="outline">
                     Отмена
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {stageError !== null && (
+              <div className="grid gap-2 rounded-xl border border-[#F43F5E]/30 bg-[#F43F5E]/8 p-3">
+                <p className="text-xs font-medium text-[#FB7185]">{stageError.message}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Заполните недостающие условия на вкладках «Квалификация»/«Контакты» — или укажите
+                  основание обхода (фиксируется в истории с вашим именем).
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    onChange={(event) => setOverrideReason(event.target.value)}
+                    placeholder="Основание обхода обязательного условия"
+                    value={overrideReason}
+                  />
+                  <Button
+                    disabled={overrideReason.trim().length < 3 || moveDeal.isPending}
+                    onClick={() =>
+                      moveDeal.mutate(
+                        {
+                          id: deal.id,
+                          stageId: stageError.stageId,
+                          position: stages.find((item) => item.id === stageError.stageId)?.deals.length ?? 0,
+                          overrideReason: overrideReason.trim(),
+                        },
+                        {
+                          onSuccess: () => {
+                            setStageError(null)
+                            setOverrideReason('')
+                          },
+                        },
+                      )
+                    }
+                    size="sm"
+                    variant="destructive"
+                  >
+                    Обойти с причиной
                   </Button>
                 </div>
               </div>
@@ -495,6 +551,13 @@ export function DealSheet({
                 ))}
               </div>
             </div>
+          )}
+
+          {deal && (
+            <DealSheetTabs
+              dealId={deal.id}
+              stages={stages.map((stage) => ({ id: stage.id, title: stage.title }))}
+            />
           )}
 
           {deal && (

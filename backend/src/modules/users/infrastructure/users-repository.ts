@@ -138,6 +138,7 @@ function toAdminUserSummary(user: {
   email: string
   displayName: string | null
   role: UserRole
+  agentPermissions?: unknown
   createdAt: Date
 }): AdminUserSummary {
   return {
@@ -145,6 +146,38 @@ function toAdminUserSummary(user: {
     email: user.email,
     displayName: user.displayName,
     role: user.role,
+    agentPermissions: ((user as { agentPermissions?: unknown }).agentPermissions as string[]) ?? [],
     createdAt: user.createdAt.toISOString(),
+  }
+}
+
+
+/// AGENT-01-AC01: хранилище прав агентской записи для админ-операции.
+export function createAgentPermissionsStore(db: DbClient) {
+  return {
+    async findUser(id: string) {
+      const user = await db.user.findUnique({ where: { id }, select: { id: true, role: true } })
+      return user
+    },
+    async setPermissions(id: string, permissions: string[]) {
+      const user = await db.user.update({
+        where: { id },
+        data: { agentPermissions: permissions },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          role: true,
+          agentPermissions: true,
+        },
+      })
+      return {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role as 'user' | 'admin' | 'agent',
+        agentPermissions: (user.agentPermissions as string[]) ?? [],
+      }
+    },
   }
 }

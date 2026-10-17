@@ -100,6 +100,8 @@ export type BusinessRepository = {
   listCompanies(): Promise<Company[]>
   createCompany(input: CreateCompanyRequest): Promise<Company>
   countTxns(): Promise<number>
+  /// Связан ли факт денег с обязательством (для запрета правки/удаления, FIX-04-AC03).
+  findLinkedReceiptTxn(id: string): Promise<{ id: string; expectedPaymentId: string | null; reversalOfId: string | null } | null>
   listRecentComments(since: Date, limit: number): Promise<
     Array<{ body: string; createdAt: string; dealTitle: string; dealId: string; authorName: string | null }>
   >

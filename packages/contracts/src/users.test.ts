@@ -61,6 +61,7 @@ describe('user and admin contracts', () => {
       email: user.email,
       displayName: user.displayName,
       role: user.role,
+      agentPermissions: [],
       createdAt: user.createdAt,
     }
     expect(adminUserSummarySchema.parse(summary)).toEqual(summary)

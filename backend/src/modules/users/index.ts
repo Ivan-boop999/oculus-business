@@ -3,7 +3,7 @@ import type { MiddlewareHandler } from 'hono'
 import type { DbClient } from '../../db'
 import type { AuthHttpEnv } from '../auth'
 import { UsersService } from './application/users-service'
-import { createPrismaUsersRepository } from './infrastructure/users-repository'
+import { createAgentPermissionsStore, createPrismaUsersRepository } from './infrastructure/users-repository'
 import { createUsersRoutes } from './transport/routes'
 
 type CreateUsersModuleOptions = {
@@ -21,6 +21,7 @@ export function createUsersModule(options: CreateUsersModuleOptions) {
     clock: { now: () => new Date() },
     profileWriter: repository,
     userRoleUpdater: repository,
+    agentPermissionsStore: createAgentPermissionsStore(options.db),
   })
   return createUsersRoutes({
     adminUsersReadRateLimit: options.adminUsersReadRateLimit,

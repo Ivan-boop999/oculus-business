@@ -58,7 +58,9 @@ type NavNode = NavLeaf & {
 
 const NAV: ReadonlyArray<NavNode> = [
   { label: 'Обзор', to: '/app', icon: DashboardSquare01Icon, exact: true },
+  { label: 'Сегодня', to: '/app/today', icon: Calendar01Icon, isNew: true },
   { label: 'Сделки', to: '/app/crm', icon: HandshakeIcon },
+  { label: 'Черновики', to: '/app/drafts', icon: Contact01Icon, isNew: true },
   { label: 'Контрагенты', to: '/app/companies', icon: Contact01Icon, isNew: true },
   {
     label: 'Финансы',
@@ -81,7 +83,7 @@ const FOOTER_NAV: ReadonlyArray<NavLeaf> = [
 ]
 
 const MOBILE_TABS: ReadonlyArray<NavLeaf> = [
-  { label: 'Обзор', to: '/app', icon: DashboardSquare01Icon, exact: true },
+  { label: 'Сегодня', to: '/app/today', icon: Calendar01Icon },
   { label: 'Сделки', to: '/app/crm', icon: HandshakeIcon },
   { label: 'Финансы', to: '/app/finance', icon: Wallet01Icon },
   { label: 'Задачи', to: '/app/tasks', icon: Task01Icon },
